@@ -8,7 +8,6 @@ use std::collections::BTreeSet;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::sync::atomic::AtomicBool;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -63,7 +62,7 @@ enum Operation {
 #[derive(Debug, Subcommand)]
 enum PlanCommand {
     /// Capture selected source bytes into a plan for one explicit argv check.
-    Init(InitOptions),
+    Init(Box<InitOptions>),
     /// Validate a plan schema and policy; no recorded commands are run.
     Check {
         plan: PathBuf,
@@ -331,47 +330,112 @@ fn print_json(value: &impl Serialize) -> Result<(), CliError> {
         .map_err(io_error)
 }
 
-fn git(root: &Path, args: &[&str]) -> Result<std::process::Output, CliError> {
-    Command::new("git")
-        .args([
-            "--no-pager",
-            "--literal-pathspecs",
-            "-c",
-            "core.fsmonitor=false",
-            "-c",
-            "core.untrackedCache=false",
-            "-C",
-        ])
-        .arg(root)
-        .args(args)
-        .env("GIT_OPTIONAL_LOCKS", "0")
-        .env("GIT_NO_LAZY_FETCH", "1")
-        .env("GIT_NO_REPLACE_OBJECTS", "1")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .stdin(Stdio::null())
-        .output()
-        .map_err(io_error)
+struct GitOutput {
+    success: bool,
+    stdout: Vec<u8>,
 }
 
-fn revision(root: &Path) -> Result<String, CliError> {
-    let output = git(root, &["rev-parse", "--verify", "HEAD"])?;
+fn git(root: &Path, args: &[&str], cancelled: &AtomicBool) -> Result<GitOutput, CliError> {
+    let mut temporary = tempfile::Builder::new();
+    temporary.prefix("visioncraft-inspection-");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        temporary.permissions(fs::Permissions::from_mode(0o700));
+    }
+    let temporary = temporary.tempdir().map_err(io_error)?;
+    let limit = if args.first() == Some(&"cat-file") && args.get(1) == Some(&"blob") {
+        MAX_FILE
+    } else {
+        MAX_JSON
+    };
+    let mut argv: Vec<String> = [
+        "--no-pager",
+        "--literal-pathspecs",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.untrackedCache=false",
+        "-C",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    argv.push(
+        root.to_str()
+            .ok_or_else(|| {
+                error(
+                    78,
+                    "source root is not representable in portable invocation metadata",
+                )
+            })?
+            .into(),
+    );
+    argv.extend(args.iter().map(|arg| (*arg).to_owned()));
+    let fixed: std::collections::BTreeMap<String, String> = [
+        ("GIT_OPTIONAL_LOCKS", "0"),
+        ("GIT_NO_LAZY_FETCH", "1"),
+        ("GIT_NO_REPLACE_OBJECTS", "1"),
+        ("GIT_TERMINAL_PROMPT", "0"),
+        ("GIT_CONFIG_NOSYSTEM", "1"),
+        ("GIT_CONFIG_GLOBAL", "/dev/null"),
+    ]
+    .into_iter()
+    .map(|(name, value)| (name.into(), value.into()))
+    .collect();
+    let mut env = vec!["PATH".into()];
+    env.extend(fixed.keys().cloned());
+    let invocation = Invocation {
+        program: "git".into(),
+        args: argv,
+        cwd: ".".into(),
+        env,
+        timeout_ms: 10_000,
+        max_output_bytes: limit,
+    };
+    let captured = process::run_command_with_env(
+        &invocation,
+        root,
+        temporary.path(),
+        cancelled,
+        false,
+        &fixed,
+    )
+    .map_err(io_error)?;
+    match captured.termination {
+        Termination::Completed if captured.exit_code.is_some() => Ok(GitOutput {
+            success: captured.exit_code == Some(0),
+            stdout: read_bounded(&captured.stdout, limit)?,
+        }),
+        Termination::Unavailable => Err(error(78, "Git metadata inspector is unavailable")),
+        Termination::TimedOut => Err(error(124, "Git metadata inspection exceeded its deadline")),
+        Termination::Interrupted => Err(error(130, "Git metadata inspection interrupted")),
+        _ => Err(error(
+            70,
+            "Git metadata inspection failed or exceeded its capture bound",
+        )),
+    }
+}
+
+fn revision(root: &Path, cancelled: &AtomicBool) -> Result<String, CliError> {
+    let output = git(root, &["rev-parse", "--verify", "HEAD"], cancelled)?;
     let revision = String::from_utf8(output.stdout)
         .map_err(|_| error(2, "Git revision is not UTF-8"))?
         .trim()
         .to_owned();
-    if !output.status.success() || !crate::hex(&revision, &[40, 64]) {
+    if !output.success || !crate::hex(&revision, &[40, 64]) {
         return Err(error(2, "source root requires a committed Git revision"));
     }
     Ok(revision)
 }
 
-fn selected_dirty(root: &Path, paths: &[String]) -> Result<bool, CliError> {
+fn selected_dirty(root: &Path, paths: &[String], cancelled: &AtomicBool) -> Result<bool, CliError> {
     // Git status/diff may invoke configured clean filters. Compare unfiltered
     // committed blob bytes instead; worktree conversion differences are dirty.
     let mut args = vec!["ls-tree", "-z", "--full-tree", "HEAD", "--"];
     args.extend(paths.iter().map(String::as_str));
-    let output = git(root, &args)?;
-    if !output.status.success() {
+    let output = git(root, &args, cancelled)?;
+    if !output.success {
         return Err(error(70, "could not inspect selected Git input status"));
     }
     let mut entries = std::collections::BTreeMap::new();
@@ -401,16 +465,31 @@ fn selected_dirty(root: &Path, paths: &[String]) -> Result<bool, CliError> {
         if !crate::hex(object, &[40, 64]) {
             return Err(error(70, "invalid Git object identifier"));
         }
-        let blob = git(root, &["cat-file", "blob", object])?;
-        if !blob.status.success() {
+        let size = git(root, &["cat-file", "-s", object], cancelled)?;
+        let declared = std::str::from_utf8(&size.stdout)
+            .map_err(|_| error(70, "invalid committed blob size"))?
+            .trim();
+        if !size.success || !declared.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(error(70, "committed blob size is unavailable"));
+        }
+        let declared = declared
+            .parse::<u64>()
+            .map_err(|_| error(70, "invalid committed blob size"))?;
+        if declared > MAX_FILE {
+            return Err(error(2, "committed source blob exceeds inspection bound"));
+        }
+        let blob = git(root, &["cat-file", "blob", object], cancelled)?;
+        if !blob.success || blob.stdout.len() as u64 != declared {
             return Err(error(70, "committed source blob is unavailable"));
         }
+        let committed_hash = crate::sha256(&blob.stdout);
+        drop(blob);
         let current = match confined(root, path, false) {
             Ok(file) => read_bounded(&file, MAX_FILE)?,
             Err(_) if !root.join(path).try_exists().map_err(io_error)? => return Ok(true),
             Err(e) => return Err(e),
         };
-        if blob.stdout != current {
+        if committed_hash != crate::sha256(&current) {
             return Ok(true);
         }
     }
@@ -495,7 +574,7 @@ fn read_plan(path: &Path) -> Result<(PathBuf, QualityPlan), CliError> {
     Ok((parent, QualityPlan::parse(&bytes).map_err(invalid)?))
 }
 
-fn init(options: InitOptions) -> Result<i32, CliError> {
+fn init(options: InitOptions, cancelled: &AtomicBool) -> Result<i32, CliError> {
     let root = root(&options.root)?;
     let out = output_path(&options.out)?;
     let mut paths = options.input;
@@ -508,9 +587,9 @@ fn init(options: InitOptions) -> Result<i32, CliError> {
             return Err(error(2, "input paths must be relative"));
         }
     }
-    let revision = revision(&root)?;
+    let revision = revision(&root, cancelled)?;
     let selected = inputs(&root, &paths, false)?;
-    let dirty = selected_dirty(&root, &paths)?;
+    let dirty = selected_dirty(&root, &paths, cancelled)?;
     let snapshot = if dirty {
         Some(source_snapshot(&root, &paths, &revision, &selected)?)
     } else {
@@ -648,6 +727,48 @@ fn execution_exit(receipt: &ExecutionReceipt, evaluator: &Evaluator) -> i32 {
     }
 }
 
+fn executable(invocation: &Invocation, source_root: &Path) -> Option<PathBuf> {
+    let requested = Path::new(&invocation.program);
+    let candidates = if requested.is_absolute() {
+        vec![requested.to_owned()]
+    } else if requested.components().count() > 1 {
+        vec![source_root.join(&invocation.cwd).join(requested)]
+    } else {
+        // Make PATH resolution explicit so the receipt can name the binary
+        // actually selected, independently of the requested program spelling.
+        let search = if invocation.env.iter().any(|name| name == "PATH") {
+            std::env::var_os("PATH").unwrap_or_else(|| "/usr/bin:/bin".into())
+        } else {
+            "/usr/bin:/bin".into()
+        };
+        std::env::split_paths(&search)
+            .map(|directory| {
+                let directory = if directory.is_absolute() {
+                    directory
+                } else {
+                    source_root.join(&invocation.cwd).join(directory)
+                };
+                directory.join(requested)
+            })
+            .collect()
+    };
+    candidates.into_iter().find_map(|path| {
+        let path = path.canonicalize().ok()?;
+        let metadata = fs::metadata(&path).ok()?;
+        if !metadata.is_file() {
+            return None;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if metadata.permissions().mode() & 0o111 == 0 {
+                return None;
+            }
+        }
+        Some(path)
+    })
+}
+
 fn run(options: RunOptions, cancelled: &AtomicBool) -> Result<i32, CliError> {
     let source_root = root(&options.root)?;
     let (plan_root, plan) = read_plan(&options.plan)?;
@@ -669,7 +790,7 @@ fn run(options: RunOptions, cancelled: &AtomicBool) -> Result<i32, CliError> {
         confined(&source_root, &check.invocation.cwd, true)?;
     }
     let paths: Vec<_> = plan.subject.inputs.iter().map(|a| a.path.clone()).collect();
-    if revision(&source_root)? != plan.subject.revision
+    if revision(&source_root, cancelled)? != plan.subject.revision
         || inputs(&source_root, &paths, false)? != plan.subject.inputs
     {
         return Err(error(
@@ -696,7 +817,7 @@ fn run(options: RunOptions, cancelled: &AtomicBool) -> Result<i32, CliError> {
     let mut exit = 0;
     for (index, check) in selected.into_iter().enumerate() {
         if inputs(&source_root, &paths, false)? != plan.subject.inputs
-            || revision(&source_root)? != plan.subject.revision
+            || revision(&source_root, cancelled)? != plan.subject.revision
         {
             return Err(error(
                 1,
@@ -707,8 +828,26 @@ fn run(options: RunOptions, cancelled: &AtomicBool) -> Result<i32, CliError> {
         let directory = format!("check-{index:04}");
         let attempt = out.join(&directory);
         process::private_directory(&attempt).map_err(io_error)?;
+        let resolved = executable(&check.invocation, &source_root);
+        if resolved
+            .as_ref()
+            .is_some_and(|path| path.to_str().is_none())
+        {
+            return Err(error(
+                78,
+                "resolved executable path is not representable in the portable receipt",
+            ));
+        }
+        let executable_sha256 = resolved
+            .as_ref()
+            .and_then(|path| read_bounded(path, MAX_FILE).ok())
+            .map(|bytes| crate::sha256(&bytes));
+        let mut actual_invocation = check.invocation.clone();
+        if let Some(path) = &resolved {
+            actual_invocation.program = path.to_string_lossy().into_owned();
+        }
         let captured =
-            process::run_command(&check.invocation, &source_root, &attempt, cancelled, false)
+            process::run_command(&actual_invocation, &source_root, &attempt, cancelled, false)
                 .map_err(io_error)?;
         let stdout = Artifact {
             path: format!("{directory}/stdout.log"),
@@ -747,8 +886,10 @@ fn run(options: RunOptions, cancelled: &AtomicBool) -> Result<i32, CliError> {
             check_id: check.id.clone(),
             subject: plan.subject.clone(),
             invocation: check.invocation.clone(),
-            executable: check.invocation.program.clone(),
-            executable_sha256: None,
+            executable: resolved
+                .map(|path| path.to_string_lossy().into_owned())
+                .unwrap_or_else(|| check.invocation.program.clone()),
+            executable_sha256,
             tool_version: None,
             started_at_ms: captured.started_at_ms,
             finished_at_ms: captured.finished_at_ms,
@@ -818,12 +959,12 @@ fn load_receipts(
     Ok(receipts)
 }
 
-fn evaluate_options(options: EvaluateOptions) -> Result<i32, CliError> {
+fn evaluate_options(options: EvaluateOptions, cancelled: &AtomicBool) -> Result<i32, CliError> {
     let source_root = root(&options.root)?;
     let (_, plan) = read_plan(&options.plan)?;
     let paths: Vec<_> = plan.subject.inputs.iter().map(|a| a.path.clone()).collect();
     let mut current = plan.subject.clone();
-    current.revision = revision(&source_root)?;
+    current.revision = revision(&source_root, cancelled)?;
     current.inputs = inputs(&source_root, &paths, true)?;
     // An absent selected file is stale evidence, not a synthetic empty subject.
     if current.inputs.is_empty() {
@@ -832,7 +973,7 @@ fn evaluate_options(options: EvaluateOptions) -> Result<i32, CliError> {
             "all selected source inputs are missing; evidence is stale",
         ));
     }
-    current.dirty = selected_dirty(&source_root, &paths)?;
+    current.dirty = selected_dirty(&source_root, &paths, cancelled)?;
     current.working_tree = if current.dirty {
         Some(Artifact {
             path: "current-selected-inputs.json".into(),
@@ -885,9 +1026,9 @@ fn evaluate_options(options: EvaluateOptions) -> Result<i32, CliError> {
                 &plan.subject.revision,
                 &current.revision,
             ],
+            cancelled,
         )?
-        .status
-        .success()
+        .success
     {
         ancestors.push(plan.subject.revision.clone());
     }
@@ -956,7 +1097,7 @@ pub fn execute(cli: Cli, cancelled: &AtomicBool) -> Result<i32, CliError> {
     match cli.command {
         Operation::Plan {
             command: PlanCommand::Init(options),
-        } => init(options),
+        } => init(*options, cancelled),
         Operation::Plan {
             command: PlanCommand::Check { plan, json },
         } => {
@@ -981,7 +1122,7 @@ pub fn execute(cli: Cli, cancelled: &AtomicBool) -> Result<i32, CliError> {
         }
         | Operation::Expectations {
             command: ExpectationCommand::Check(options),
-        } => evaluate_options(options),
+        } => evaluate_options(options, cancelled),
         Operation::Deepsec(options) => {
             crate::deepsec::execute(&options, cancelled).map_err(|e| error(e.code, e.message))
         }

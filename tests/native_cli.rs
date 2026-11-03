@@ -102,6 +102,12 @@ fn plan_run_and_evaluate_use_real_output_but_do_not_invent_scope_or_tests() {
     .unwrap();
     assert_eq!(receipt.observed_scope, None);
     assert!(receipt.observed_tests.is_empty());
+    let executable = Path::new("/bin/sh").canonicalize().unwrap();
+    assert_eq!(receipt.executable, executable.to_str().unwrap());
+    assert_eq!(
+        receipt.executable_sha256.as_deref(),
+        Some(visioncraft::sha256(&fs::read(executable).unwrap()).as_str())
+    );
     assert_eq!(
         fs::read(root.path().join("evidence/check-0000/stdout.log")).unwrap(),
         b"real-output"
@@ -403,4 +409,211 @@ fn signal_termination_still_preserves_a_valid_nonpassing_receipt() {
     assert_eq!(receipt.process, visioncraft::ProcessStatus::Interrupted);
     assert!(receipt.signal.is_some());
     assert!(!evaluate(root.path()).status.success());
+}
+
+#[test]
+fn manual_context_and_explicit_current_subject_are_byte_checked() {
+    let root = fixture();
+    init(root.path(), "printf ok");
+    let plan_path = root.path().join("plan.json");
+    let mut plan = QualityPlan::parse(&fs::read(&plan_path).unwrap()).unwrap();
+    plan.expectations.push(visioncraft::Expectation {
+        id: "MANUAL-1".into(),
+        claim: "fixture observation".into(),
+        required: true,
+        category: visioncraft::EvidenceCategory::Manual,
+        checks: vec![],
+        regression_critical: false,
+        stabilizer: None,
+        positive_control: None,
+        independent_audit: false,
+        limitation: Some("synthetic manual-observation fixture".into()),
+    });
+    fs::write(&plan_path, serde_json::to_vec(&plan).unwrap()).unwrap();
+    success(&run(root.path()));
+    assert_eq!(evaluate(root.path()).status.code(), Some(1));
+    let receipt = ExecutionReceipt::parse(
+        &fs::read(root.path().join("evidence/check-0000/receipt.json")).unwrap(),
+    )
+    .unwrap();
+    let record = b"fixture observer recorded the scoped state";
+    fs::write(root.path().join("evidence/manual.txt"), record).unwrap();
+    let observation = visioncraft::ManualObservation {
+        expectation_id: "MANUAL-1".into(),
+        plan_sha256: plan.digest().unwrap(),
+        subject: plan.subject.clone(),
+        observer: "fixture observer".into(),
+        observed: "scoped fixture state".into(),
+        verdict: visioncraft::AuditVerdict::Supported,
+        artifact: visioncraft::Artifact {
+            path: "manual.txt".into(),
+            sha256: visioncraft::sha256(record),
+        },
+        captured_at_ms: receipt.finished_at_ms,
+    };
+    fs::write(
+        root.path().join("evidence/context.json"),
+        serde_json::to_vec(&serde_json::json!({"manual_observations":[observation]})).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("current.json"),
+        serde_json::to_vec(&plan.subject).unwrap(),
+    )
+    .unwrap();
+    let args = [
+        "evaluate",
+        "plan.json",
+        "--receipts",
+        "evidence",
+        "--context",
+        "evidence/context.json",
+        "--current-subject",
+        "current.json",
+        "--json",
+    ];
+    success(&cli(root.path(), &args));
+    fs::write(root.path().join("evidence/manual.txt"), b"changed").unwrap();
+    assert!(!cli(root.path(), &args).status.success());
+}
+
+#[test]
+fn ambient_git_environment_cannot_redirect_metadata_to_a_sibling_repo() {
+    let root = fixture();
+    let foreign = fixture();
+    fs::write(foreign.path().join("source.txt"), "foreign bytes\n").unwrap();
+    git(
+        foreign.path(),
+        &[
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-am",
+            "foreign",
+        ],
+    );
+    let result = Command::new(env!("CARGO_BIN_EXE_visioncraft"))
+        .current_dir(root.path())
+        .env("GIT_DIR", foreign.path().join(".git"))
+        .env("GIT_WORK_TREE", foreign.path())
+        .args([
+            "plan",
+            "init",
+            "--out",
+            "plan.json",
+            "--input",
+            "source.txt",
+            "--configuration",
+            "fixture",
+            "--",
+            "/bin/true",
+        ])
+        .output()
+        .unwrap();
+    success(&result);
+    let plan = QualityPlan::parse(&fs::read(root.path().join("plan.json")).unwrap()).unwrap();
+    let expected = String::from_utf8(git(root.path(), &["rev-parse", "HEAD"]).stdout).unwrap();
+    assert_eq!(plan.subject.revision, expected.trim());
+    assert!(!plan.subject.dirty);
+}
+
+#[test]
+fn committed_blob_size_is_bounded_before_requesting_blob_contents() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = fixture();
+    let tools = tempfile::tempdir().unwrap();
+    let actual_git = String::from_utf8(
+        Command::new("sh")
+            .args(["-c", "command -v git"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    let script = format!(
+        "#!/bin/sh\ncase \"$*\" in\n  *'cat-file -s'*) printf '1073741825\\n';;\n  *'cat-file blob'*) touch SHOULD_NOT_READ_BLOB; exit 1;;\n  *) exec '{}' \"$@\";;\nesac\n",
+        actual_git.trim()
+    );
+    fs::write(tools.path().join("git"), script).unwrap();
+    fs::set_permissions(tools.path().join("git"), fs::Permissions::from_mode(0o755)).unwrap();
+    let path = format!(
+        "{}:{}",
+        tools.path().display(),
+        std::env::var("PATH").unwrap()
+    );
+    let result = Command::new(env!("CARGO_BIN_EXE_visioncraft"))
+        .current_dir(root.path())
+        .env("PATH", path)
+        .args([
+            "plan",
+            "init",
+            "--out",
+            "plan.json",
+            "--input",
+            "source.txt",
+            "--configuration",
+            "fixture",
+            "--",
+            "/bin/true",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(2));
+    assert!(!root.path().join("SHOULD_NOT_READ_BLOB").exists());
+    assert!(!root.path().join("plan.json").exists());
+}
+
+#[test]
+fn cancellation_reaches_bounded_metadata_inspection_before_any_check_runs() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = fixture();
+    let tools = tempfile::tempdir().unwrap();
+    fs::write(tools.path().join("git"), "#!/bin/sh\nsleep 30\n").unwrap();
+    fs::set_permissions(tools.path().join("git"), fs::Permissions::from_mode(0o755)).unwrap();
+    let path = format!(
+        "{}:{}",
+        tools.path().display(),
+        std::env::var("PATH").unwrap()
+    );
+    let mut child = Command::new(env!("CARGO_BIN_EXE_visioncraft"))
+        .current_dir(root.path())
+        .env("PATH", path)
+        .args([
+            "plan",
+            "init",
+            "--out",
+            "plan.json",
+            "--input",
+            "source.txt",
+            "--configuration",
+            "fixture",
+            "--",
+            "/bin/true",
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    nix::sys::signal::kill(
+        nix::unistd::Pid::from_raw(child.id() as i32),
+        nix::sys::signal::Signal::SIGTERM,
+    )
+    .unwrap();
+    let start = std::time::Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        if start.elapsed() > std::time::Duration::from_secs(3) {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("metadata child did not respond to cancellation");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    };
+    assert_eq!(status.code(), Some(130));
+    assert!(!root.path().join("plan.json").exists());
 }
