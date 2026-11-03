@@ -115,3 +115,11 @@ pub(crate) fn relative_path(path: &str) -> bool {
     })
     .is_ok()
 }
+
+/// Bounded process execution with private evidence capture.
+#[cfg(feature = "process")]
+pub mod process;
+
+/// Versioned adapter for an independently installed Deepsec reviewer.
+#[cfg(feature = "cli")]
+pub mod deepsec;
