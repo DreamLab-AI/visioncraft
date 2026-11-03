@@ -11,6 +11,60 @@ VisionCraft packages the estate's engineering and review practices for reuse in
 any project. It is published on [crates.io](https://crates.io/crates/visioncraft),
 with [Rust API documentation](https://docs.rs/visioncraft).
 
+## Why VisionCraft
+
+Every finished change should come with a clear account of what it was meant to
+do, what was checked, what the results show, and where the change has actually
+been delivered. VisionCraft makes that a repeatable engineering discipline. It
+combines a skill that coding agents can follow with a Rust library and command-line
+tools for recording and assessing evidence. It grew from the Build with Quality
+skill used across DreamLab-AI's projects.
+
+When coding agents work on your code, you still need to understand what they have
+done. A maintainer needs enough context to review the change, another developer
+needs to know which behaviour was tested, and the person deploying it needs to
+know which version users will receive. VisionCraft gives those conversations a
+shared basis: the intended behaviour, the relevant inputs, the checks that ran
+and their actual results. That record can accompany the work through review
+and release.
+
+Start by agreeing the behaviour and reproducing the problem.
+Consider an application where an empty search query should return an empty
+result, but currently produces an error. A useful repair establishes that
+expectation, reproduces the fault, changes the code and runs a test that reaches
+the original failure. A normal-query control checks that ordinary searches
+still work. The reviewer can then inspect both the repair and the evidence
+supporting it. This is a small, focused piece of work.
+
+A shared event-format change needs more depth. Each consumer has expectations
+about the data it receives. Older events may still be stored, and services may
+upgrade at different times. The same method expands to cover consumer tests,
+compatibility, migration and the decisions behind the new format. Merging the
+code, publishing a version and observing its deployment remain separate steps.
+Teams can scale the work to the change and its consequences.
+
+VisionCraft's tools support that discipline with explicit checks and captured command
+output associated with the source inputs being tested. The gate refuses to call
+required evidence a pass when it is missing, failed, stale or incomplete. A
+reviewer can see what supports the result and what still needs attention. These
+records help people make a judgement; they do not prove that the software is
+correct or secure, or that every important behaviour has been tested.
+
+Adoption can start with the skill in a coding agent or with the library and CLI
+in an existing repository and CI process. Keep your issue tracker, tests and
+architecture decisions. There is no required coding-agent framework, Agentbox
+installation or model subscription for the deterministic core. When configured,
+Agentic QE testing tools and Deepsec security review can contribute specialist
+evidence to the same engineering process.
+
+VisionCraft belongs to the VisionFlow estate, where architecture and audit
+records connect the projects. Sealmap supplies shared diagram and review
+contracts, while Agentbox consumes the published VisionCraft release and makes
+its method available to agents. The reusable skill, library and CLI are also
+available to independent maintainers and teams outside that estate.
+
+## Execution boundary
+
 It works without Agentbox, an orchestration framework or a model subscription.
 The deterministic core does not launch processes or make network calls. The optional CLI
 runs explicitly requested commands; optional upstream tools provide their own
