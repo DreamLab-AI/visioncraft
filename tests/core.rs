@@ -599,6 +599,7 @@ fn a_manual_expectation_does_not_need_a_fabricated_executable_scenario() {
     e.stabilizer = None;
     e.positive_control = None;
     plan.expectations.push(e);
+    plan.policy.max_age_ms = None;
     plan.validate().unwrap();
     let mut verified = VerifiedArtifacts::default();
     let run = receipt(&plan, "main", &mut verified);
@@ -616,7 +617,89 @@ fn a_manual_expectation_does_not_need_a_fabricated_executable_scenario() {
     }];
     let mut context = EvaluationContext::new(1020, &plan.subject, &verified);
     context.manual_observations = &observations;
-    assert!(evaluate(&plan, &[run], &context).passed());
+    let runs = [run];
+    assert!(evaluate(&plan, &runs, &context).passed());
+    for case in 0..4 {
+        let mut current = plan.subject.clone();
+        match case {
+            0 => current.repository = "another repository".into(),
+            1 => current.configuration = "different features".into(),
+            2 => current.inputs[0].sha256 = sha256(b"changed implementation"),
+            _ => current.revision = "b".repeat(40),
+        }
+        let mut context = EvaluationContext::new(1020, &current, &verified);
+        context.manual_observations = &observations;
+        let report = evaluate(&plan, &runs, &context);
+        assert_eq!(report.outcome, GateOutcome::Incomplete, "case {case}");
+        assert_eq!(
+            report.expectations[0].outcome,
+            CheckOutcome::Inconclusive,
+            "manual observation must not support a changed subject: case {case}"
+        );
+        assert!(
+            !report.expectations[0]
+                .reasons
+                .iter()
+                .any(|reason| reason.contains("observer supports")),
+            "stale evidence must not retain a supporting interpretation"
+        );
+    }
+    let mut current = plan.subject.clone();
+    current.revision = "b".repeat(40);
+    let ancestry = [plan.subject.revision.clone()];
+    let mut context = EvaluationContext::new(1020, &current, &verified);
+    context.manual_observations = &observations;
+    context.ancestor_revisions = &ancestry;
+    assert!(evaluate(&plan, &runs, &context).passed());
+}
+
+#[test]
+fn stale_audits_cannot_support_or_contradict_the_current_subject() {
+    let mut plan = plan();
+    let mut e = expectation();
+    e.independent_audit = true;
+    plan.expectations.push(e);
+    let mut verified = VerifiedArtifacts::default();
+    let runs = ["main", "control", "probe"].map(|id| receipt(&plan, id, &mut verified));
+    let valid = audit(&plan, &mut verified);
+    let mut current = plan.subject.clone();
+    current.inputs[0].sha256 = sha256(b"changed implementation");
+    for verdict in [AuditVerdict::Supported, AuditVerdict::Contradicted] {
+        let mut assessment = valid.clone();
+        assessment.verdict = verdict;
+        let audits = [assessment];
+        let mut context = EvaluationContext::new(1020, &current, &verified);
+        context.audits = &audits;
+        let report = evaluate(&plan, &runs, &context);
+        assert_eq!(report.outcome, GateOutcome::Incomplete);
+        assert_eq!(report.expectations[0].outcome, CheckOutcome::Inconclusive);
+        assert!(
+            !report.expectations[0].reasons.iter().any(|reason| {
+                reason.contains("supports the scoped claim")
+                    || reason.contains("recorded a counterexample")
+            }),
+            "a verdict about old inputs must not be credited to current inputs"
+        );
+    }
+}
+
+#[test]
+fn deadlines_use_monotonic_duration_instead_of_wall_clock_span() {
+    let plan = plan();
+    let mut verified = VerifiedArtifacts::default();
+    let mut run = receipt(&plan, "main", &mut verified);
+    for (finished, elapsed) in [(6000, 10), (1001, 1000)] {
+        run.finished_at_ms = finished;
+        run.elapsed_ms = elapsed;
+        let context = EvaluationContext::new(finished + 10, &plan.subject, &verified);
+        assert!(evaluate(&plan, std::slice::from_ref(&run), &context).passed());
+    }
+    run.elapsed_ms = plan.checks[0].invocation.timeout_ms + 1;
+    let context = EvaluationContext::new(run.finished_at_ms + 10, &plan.subject, &verified);
+    assert_eq!(
+        evaluate(&plan, &[run], &context).outcome,
+        GateOutcome::Error
+    );
 }
 
 #[test]

@@ -419,36 +419,19 @@ fn revision(root: &Path, cancelled: &AtomicBool) -> Result<String, CliError> {
 fn selected_dirty(root: &Path, paths: &[String], cancelled: &AtomicBool) -> Result<bool, CliError> {
     // Git status/diff may invoke configured clean filters. Compare unfiltered
     // committed blob bytes instead; worktree conversion differences are dirty.
-    let mut args = vec!["ls-tree", "-z", "--full-tree", "HEAD", "--"];
-    args.extend(paths.iter().map(String::as_str));
+    let arguments = crate::git_metadata::tree_arguments("HEAD", paths);
+    let args: Vec<_> = arguments.iter().map(String::as_str).collect();
     let output = git(root, &args, cancelled)?;
     if !output.success {
         return Err(error(70, "could not inspect selected Git input status"));
     }
-    let mut entries = std::collections::BTreeMap::new();
-    for row in output
-        .stdout
-        .split(|b| *b == 0)
-        .filter(|row| !row.is_empty())
-    {
-        let (meta, path) = row.split_at(
-            row.iter()
-                .position(|b| *b == b'\t')
-                .ok_or_else(|| error(70, "invalid Git tree record"))?,
-        );
-        let meta = std::str::from_utf8(meta).map_err(|_| error(70, "invalid Git tree metadata"))?;
-        let fields: Vec<_> = meta.split_whitespace().collect();
-        if fields.len() != 3 || fields[1] != "blob" {
-            continue;
-        }
-        let path = std::str::from_utf8(&path[1..])
-            .map_err(|_| error(70, "selected Git path is not UTF-8"))?;
-        entries.insert(path.to_owned(), fields[2].to_owned());
-    }
+    let entries =
+        crate::git_metadata::tree_entries(&output.stdout).map_err(|message| error(70, message))?;
     for path in paths {
-        let Some(object) = entries.get(path) else {
+        let Some(entry) = entries.get(path) else {
             return Ok(true);
         };
+        let object = &entry.object;
         if !crate::hex(object, &[40, 64]) {
             return Err(error(70, "invalid Git object identifier"));
         }

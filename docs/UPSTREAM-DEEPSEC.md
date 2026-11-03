@@ -47,12 +47,21 @@ differ is refused; use an exact index checkout. Full mode scans first, then
 processes the selected pending candidates. No pending candidates means no new
 review, not a clean full review. Scan-only output cannot satisfy model review.
 
+Metadata requires a Git checkout with a resolvable `HEAD`. `dirty_scope` is
+`selected-inputs`: the dirty flag compares only selected raw bytes with their
+committed blobs, not every file in the repository. Raw object hashing bypasses
+Git attribute conversions. A normal LFS configuration or an unselected large
+asset therefore does not prevent an explicit small-file review. Whole-tree or
+reference-diff selection can still require a narrower manifest when expanded
+assets exceed the supported file bound.
+
 Completion requires one fresh persisted processing run for the expected project
 and root, phase `done`, a completion timestamp, and a processed-file count equal
 to the selected review set. Every selected file must have an `analyzed` record
 with the expected path, project and content hash, plus exactly one history entry
 for that run. That entry must name the model and agent, report positive output
-tokens, state `refusal.refused: false`, and contain no skipped scope. Missing,
+tokens, state `refusal.refused: false`, and carry an explicitly empty
+`refusal.skipped` array. Missing, malformed,
 zero-work, refused, partial or contradictory records prevent a pass.
 
 Retain the run and file records, raw export, normalised findings and all bounded
@@ -105,8 +114,13 @@ approval. A name prefix would not establish that trust or authorise a recipient.
 
 Metadata probes share the native CLI's restricted Git environment and disable
 repository filesystem-monitor hooks. Review checkpoints reject symlinks, hard
-links and special files throughout the bounded state tree before invoking
-Deepsec, and rewrite their ignore file privately. Existing ordinary checkpoint
+links and special files in active state before invoking Deepsec, reject tracked
+state and unexpected loader inputs at the workspace root, and rewrite their
+ignore file privately. Historical reports are not active reviewer inputs and
+are not recursively revisited. Each new report still requires a fresh path and
+ordinary parent directories. Active data retains a 100,000-entry / 64-level
+ceiling: archive old checkpoint data externally if that bound is reached; no
+user evidence is silently deleted. Existing ordinary checkpoint
 records are not proof of a fresh review: current run identity and exact source
 hashes remain required. These checks do not isolate concurrent writers with the
 same Unix identity or the reviewer's own tools.
@@ -118,3 +132,18 @@ the host. Source-bearing output stays in private evidence locations according
 to that host's policy. See the portable
 [operating method](../skills/visioncraft/references/deepsec.md) and
 [Agentbox example](../skills/visioncraft/references/ecosystem-agentbox.md).
+
+## Conservative scope handling
+
+A nonempty skipped-context list keeps the gate non-passing, even when another
+batch separately read a neighbouring file. Separate file presence does not prove
+that a caller/callee security boundary was investigated. Preserve the original
+ERROR receipt and recorded limitations. A future explicit coverage policy would
+need to distinguish exact selected-file coverage from contextual assurance; the
+current adapter does not silently make that change. An empty list is a recorded
+claim, not proof of complete semantic understanding.
+
+Full/scan modes require ordinary confined files within the documented per-file
+and aggregate bounds. Symlinks, submodules and oversized inputs are refused,
+rather than silently omitted from a supposedly complete review. An explicit
+file manifest can select a narrower scope; record its exclusions separately.

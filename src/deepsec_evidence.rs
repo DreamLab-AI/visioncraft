@@ -58,6 +58,147 @@ pub(super) fn snapshot(root: &Path, paths: &[String]) -> Result<Vec<Artifact>, G
         })
         .collect()
 }
+fn git_bytes(
+    attempt: &mut Attempt<'_>,
+    root: &Path,
+    stage: &str,
+    args: Vec<String>,
+) -> Result<Vec<u8>, GateError> {
+    let (rc, bytes) = attempt.command(stage, "git", args, root, false, false)?;
+    if rc != 0 {
+        return Err(error(78, "could not inspect read-only Git metadata"));
+    }
+    Ok(bytes)
+}
+
+fn tree(
+    attempt: &mut Attempt<'_>,
+    root: &Path,
+    reference: &str,
+) -> Result<BTreeMap<String, crate::git_metadata::Entry>, GateError> {
+    if reference.starts_with('-') {
+        return Err(error(78, "diff reference must not be a Git option"));
+    }
+    let bytes = git_bytes(
+        attempt,
+        root,
+        "reference-tree",
+        crate::git_metadata::tree_arguments(reference, &[]),
+    )?;
+    crate::git_metadata::tree_entries(&bytes).map_err(|message| error(78, message))
+}
+
+fn index(
+    attempt: &mut Attempt<'_>,
+    root: &Path,
+) -> Result<BTreeMap<String, crate::git_metadata::Entry>, GateError> {
+    let bytes = git_bytes(
+        attempt,
+        root,
+        "index-entries",
+        vec![
+            "ls-files".into(),
+            "--stage".into(),
+            "-z".into(),
+            "--".into(),
+        ],
+    )?;
+    crate::git_metadata::index_entries(&bytes).map_err(|message| error(78, message))
+}
+
+fn working_hashes(
+    attempt: &mut Attempt<'_>,
+    root: &Path,
+    paths: &[String],
+) -> Result<BTreeMap<String, String>, GateError> {
+    if paths.len() > 100_000 {
+        return Err(error(78, "review file count exceeds 100000"));
+    }
+    let mut hashes = BTreeMap::new();
+    for chunk in paths.chunks(64) {
+        let mut present = Vec::new();
+        for name in chunk {
+            if !root
+                .join(name)
+                .try_exists()
+                .map_err(|_| error(70, "source existence is unavailable"))?
+            {
+                continue;
+            }
+            let path = confined(root, name)?;
+            let meta = fs::metadata(&path).map_err(|_| error(70, "source metadata unavailable"))?;
+            if !meta.is_file() || meta.len() > 32 * 1024 * 1024 {
+                return Err(error(
+                    78,
+                    "raw review input must be an ordinary file at most 32 MiB",
+                ));
+            }
+            present.push(name.clone());
+        }
+        if present.is_empty() {
+            continue;
+        }
+        let bytes = git_bytes(
+            attempt,
+            root,
+            "raw-working-hashes",
+            crate::git_metadata::raw_hash_arguments(&present),
+        )?;
+        hashes.extend(
+            crate::git_metadata::raw_hashes(&present, &bytes)
+                .map_err(|message| error(78, message))?,
+        );
+    }
+    Ok(hashes)
+}
+
+/// Refuse repository-controlled reviewer state before any external tool is started.
+pub(super) fn refuse_tracked_workspace(
+    attempt: &mut Attempt<'_>,
+    root: &Path,
+) -> Result<(), GateError> {
+    let bytes = git_bytes(
+        attempt,
+        root,
+        "tracked-review-workspace",
+        vec![
+            "ls-files".into(),
+            "--cached".into(),
+            "-z".into(),
+            "--".into(),
+            ".deepsec-gate".into(),
+        ],
+    )?;
+    if !bytes.is_empty() {
+        return Err(error(78, "tracked .deepsec-gate reviewer state is refused"));
+    }
+    Ok(())
+}
+
+/// Observe only the selected raw input bytes against their committed Git blobs.
+pub(super) fn selected_dirty(
+    attempt: &mut Attempt<'_>,
+    root: &Path,
+    paths: &[String],
+) -> Result<bool, GateError> {
+    let mut reference = BTreeMap::new();
+    for chunk in paths.chunks(64) {
+        let bytes = git_bytes(
+            attempt,
+            root,
+            "selected-reference-tree",
+            crate::git_metadata::tree_arguments("HEAD", chunk),
+        )?;
+        reference.extend(
+            crate::git_metadata::tree_entries(&bytes).map_err(|message| error(78, message))?,
+        );
+    }
+    let current = working_hashes(attempt, root, paths)?;
+    Ok(paths
+        .iter()
+        .any(|p| reference.get(p).map(|e| &e.object) != current.get(p)))
+}
+
 pub(super) fn select(
     options: &DeepsecOptions,
     files: Option<&Path>,
@@ -75,7 +216,7 @@ pub(super) fn select(
             read_bounded(files, 8 * 1024 * 1024)?
         }
     } else {
-        let mut args: Vec<String> = if options.full || options.scan_only {
+        let args: Vec<String> = if options.full || options.scan_only {
             vec![
                 "ls-files",
                 "-z",
@@ -87,29 +228,36 @@ pub(super) fn select(
             .map(str::to_owned)
             .collect()
         } else {
-            vec!["diff", "--name-only", "-z", "--diff-filter=AMRC"]
-                .into_iter()
-                .map(str::to_owned)
-                .collect()
+            Vec::new()
         };
-        if options.diff_staged {
-            args.push("--cached".into());
-        }
-        if options.diff_working {
-            args.push("HEAD".into());
-        }
-        if let Some(reference) = &options.diff {
-            if reference.starts_with('-') {
-                return Err(error(78, "diff reference must not be a Git option"));
+        let mut bytes = if !args.is_empty() {
+            let mut args = args;
+            args.push("--".into());
+            git_bytes(attempt, root, "source-selection", args)?
+        } else {
+            let base = tree(attempt, root, options.diff.as_deref().unwrap_or("HEAD"))?;
+            let indexed = index(attempt, root)?;
+            let selected: Vec<String> = if options.diff_staged {
+                indexed
+                    .iter()
+                    .filter(|(p, e)| base.get(*p) != Some(*e))
+                    .map(|(p, _)| p.clone())
+                    .collect()
+            } else {
+                let paths: Vec<_> = indexed.keys().cloned().collect();
+                working_hashes(attempt, root, &paths)?
+                    .into_iter()
+                    .filter(|(p, hash)| base.get(p).map(|e| &e.object) != Some(hash))
+                    .map(|(p, _)| p)
+                    .collect()
+            };
+            let mut out = Vec::new();
+            for path in selected {
+                out.extend(path.as_bytes());
+                out.push(0);
             }
-            args.push(reference.clone());
-        }
-        args.push("--".into());
-        let (rc, mut bytes) =
-            attempt.command("source-selection", "git", args, root, false, false)?;
-        if rc != 0 {
-            return Err(error(78, "could not resolve review source selection"));
-        }
+            out
+        };
         if options.diff_working {
             let (rc, more) = attempt.command(
                 "untracked-selection",
@@ -146,19 +294,13 @@ pub(super) fn select(
         confined(root, path)?;
     }
     if options.diff_staged {
-        let (rc, bytes) = attempt.command(
-            "staged-byte-parity",
-            "git",
-            vec!["diff", "--name-only", "-z", "--"]
-                .into_iter()
-                .map(str::to_owned)
-                .collect(),
-            root,
-            false,
-            false,
-        )?;
-        let changed = String::from_utf8(bytes).map_err(|_| error(78, "Git paths must be UTF-8"))?;
-        if rc != 0 || changed.split('\0').any(|p| paths.contains(p)) {
+        let indexed = index(attempt, root)?;
+        let selected: Vec<_> = paths.iter().cloned().collect();
+        let working = working_hashes(attempt, root, &selected)?;
+        if paths
+            .iter()
+            .any(|p| indexed.get(p).map(|e| &e.object) != working.get(p))
+        {
             return Err(error(
                 78,
                 "staged inputs differ from working-tree bytes; review an exact index checkout",
@@ -292,7 +434,7 @@ pub(super) fn validate_review(
         if entry["refusal"]["refused"].as_bool() != Some(false)
             || entry["refusal"]["skipped"]
                 .as_array()
-                .is_some_and(|s| !s.is_empty())
+                .is_none_or(|s| !s.is_empty())
         {
             return Err(error(
                 70,

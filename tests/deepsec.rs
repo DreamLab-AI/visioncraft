@@ -1,5 +1,5 @@
 //! External reviewer protocol controls using a model-free executable double.
-#![cfg(all(unix, feature = "cli"))]
+#![cfg(all(target_os = "linux", not(target_env = "uclibc"), feature = "cli"))]
 use serde_json::{Value, json};
 use std::fs;
 use std::path::PathBuf;
@@ -132,6 +132,152 @@ fn metadata_does_not_execute_repository_fsmonitor() {
 }
 
 #[test]
+fn dirty_metadata_and_working_selection_do_not_execute_clean_filters() {
+    for working_selection in [false, true] {
+        let f = Fixture::new("pass");
+        assert!(
+            Command::new("git")
+                .args([
+                    "config",
+                    "filter.fixture.clean",
+                    "sh -c 'touch FILTER_EXECUTED; cat'"
+                ])
+                .current_dir(&f.root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        fs::write(f.root.join(".gitattributes"), "input.py filter=fixture\n").unwrap();
+        fs::write(f.root.join("input.py"), "print('changed fixture')\n").unwrap();
+        assert!(!f.root.join("FILTER_EXECUTED").exists());
+        let output = if working_selection {
+            f.run(&["--diff-working"], json!({"max_duration":"10s"}))
+        } else {
+            f.gate()
+        };
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            !f.root.join("FILTER_EXECUTED").exists(),
+            "read-only dirty/selection metadata invoked a repository clean filter (working_selection={working_selection})"
+        );
+    }
+}
+
+#[test]
+fn selected_dirty_scope_does_not_inspect_unselected_filter_managed_assets() {
+    let f = Fixture::new("pass");
+    fs::write(f.root.join("asset.bin"), "version https://git-lfs.github.com/spec/v1\noid sha256:0000000000000000000000000000000000000000000000000000000000000000\nsize 34603008\n").unwrap();
+    for args in [
+        vec!["add", "asset.bin"],
+        vec![
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            "asset pointer",
+        ],
+    ] {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(&f.root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    assert!(
+        Command::new("git")
+            .args([
+                "config",
+                "filter.lfs.clean",
+                "sh -c 'touch UNEXPECTED_LFS; cat'"
+            ])
+            .current_dir(&f.root)
+            .status()
+            .unwrap()
+            .success()
+    );
+    fs::write(f.root.join(".gitattributes"), "asset.bin filter=lfs\n").unwrap();
+    fs::File::create(f.root.join("asset.bin"))
+        .unwrap()
+        .set_len(33 * 1024 * 1024)
+        .unwrap();
+    let output = f.gate();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!f.root.join("UNEXPECTED_LFS").exists());
+    let receipt = f.receipt();
+    assert_eq!(receipt["dirty_scope"], "selected-inputs");
+    assert_eq!(receipt["dirty"], false);
+    assert_eq!(
+        receipt["observed_review"]["observed_files"],
+        json!(["input.py"])
+    );
+}
+
+#[test]
+fn tracked_review_workspace_is_refused_before_external_reviewer_version_probe() {
+    let f = Fixture::new("pass");
+    fs::create_dir(f.root.join(".deepsec-gate")).unwrap();
+    let ignored = b"# tracked fixture sentinel\n*\n";
+    let configuration = b"// tracked configuration sentinel\nexport default {};\n";
+    fs::write(f.root.join(".deepsec-gate/.gitignore"), ignored).unwrap();
+    fs::write(
+        f.root.join(".deepsec-gate/deepsec.config.mjs"),
+        configuration,
+    )
+    .unwrap();
+    assert!(
+        Command::new("git")
+            .args([
+                "add",
+                "-f",
+                ".deepsec-gate/.gitignore",
+                ".deepsec-gate/deepsec.config.mjs"
+            ])
+            .current_dir(&f.root)
+            .status()
+            .unwrap()
+            .success()
+    );
+    fs::write(
+        f.bin.join("deepsec"),
+        format!(
+            "#!/bin/sh\ntouch '{}'\nexit 0\n",
+            f.root.join("VERSION_EXECUTED").display()
+        ),
+    )
+    .unwrap();
+    let output = f.gate();
+    assert_eq!(output.status.code(), Some(78));
+    assert!(
+        !f.root.join("VERSION_EXECUTED").exists(),
+        "tracked state reached the external reviewer"
+    );
+    assert_eq!(
+        fs::read(f.root.join(".deepsec-gate/.gitignore")).unwrap(),
+        ignored
+    );
+    assert_eq!(
+        fs::read(f.root.join(".deepsec-gate/deepsec.config.mjs")).unwrap(),
+        configuration
+    );
+}
+
+#[test]
 fn review_state_refuses_nested_symlinks_before_external_tools() {
     use std::os::unix::fs::symlink;
     for nested in ["data", "data/repo/files", ".gitignore"] {
@@ -152,6 +298,37 @@ fn review_state_refuses_nested_symlinks_before_external_tools() {
         assert_eq!(fs::read_dir(outside).unwrap().count(), 0);
     }
 }
+
+#[test]
+fn workspace_root_rejects_unmanaged_loader_inputs() {
+    for name in [".env", "node_modules", "deepsec.config.ts"] {
+        let f = Fixture::new("pass");
+        let state = f.root.join(".deepsec-gate");
+        fs::create_dir(&state).unwrap();
+        fs::write(state.join(name), "untrusted loader input").unwrap();
+        let output = f.gate();
+        assert_eq!(output.status.code(), Some(78), "{name}");
+    }
+}
+
+#[test]
+fn historical_reports_are_not_revisited_as_active_reviewer_state() {
+    use std::os::unix::fs::symlink;
+    let f = Fixture::new("pass");
+    let old = f.root.join(".deepsec-gate/reports/archived");
+    fs::create_dir_all(&old).unwrap();
+    let outside = f._temp.path().join("old-capture");
+    fs::write(&outside, "preserved evidence").unwrap();
+    symlink(&outside, old.join("old-output")).unwrap();
+    let output = f.gate();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read_to_string(outside).unwrap(), "preserved evidence");
+}
 #[test]
 fn no_empty_partial_or_ambiguous_review_can_pass() {
     for case in [
@@ -161,6 +338,9 @@ fn no_empty_partial_or_ambiguous_review_can_pass() {
         "refused",
         "partial",
         "unknown-refusal",
+        "missing-skipped",
+        "null-skipped",
+        "scalar-skipped",
         "zero-output",
         "missing-model",
         "stale",

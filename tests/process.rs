@@ -1,5 +1,5 @@
 //! Executable process-boundary controls.
-#![cfg(all(unix, feature = "process"))]
+#![cfg(all(target_os = "linux", not(target_env = "uclibc"), feature = "process"))]
 
 use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};

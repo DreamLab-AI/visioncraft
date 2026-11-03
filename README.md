@@ -28,7 +28,8 @@ It is not proof of correctness, security, complete test coverage or deployment.
 
 ## Install
 
-Rust 1.88 or later is required. The process CLI currently supports Unix.
+Rust 1.88 or later is required. Native execution currently supports Linux with glibc or musl;
+the deterministic library remains independent of the operating system.
 
 ```sh
 cargo install visioncraft --locked --version 0.1.0
@@ -226,14 +227,15 @@ boundaries. Other hosts can supply their own adapters without importing them.
 ## Limits and development
 
 The process runner is **not a sandbox**. Children retain the caller's filesystem
-and network authority; environment filtering is not secret isolation. Unix
+and network authority; environment filtering is not secret isolation. Linux
 process groups support cancellation and deadlines, but a deliberately escaping
 process or a blocked kernel filesystem call needs host-level containment.
 Private capture directories protect ordinary local handling, not a hostile
 concurrent filesystem. Keep source-bearing evidence out of public commits.
 Linux can recognise exited zombie group members through an unrestricted `/proc`
-view; hidden, unreadable or uncertain state remains non-passing. Other Unix
-platforms conservatively reject any surviving group, including zombies.
+view; hidden, unreadable or uncertain state remains non-passing. Native execution
+on other platforms returns unsupported before spawning a child. Process-wide
+child reapers must not compete with the runner's ownership of its children.
 
 Run `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`
 and `RUSTDOCFLAGS='-D warnings' cargo doc --no-deps`. The

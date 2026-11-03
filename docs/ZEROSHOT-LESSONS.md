@@ -21,6 +21,10 @@ ceiling, beside an exact-boundary passing control. This bounds one declared
 pass, not arbitrary repeated invocations or blocked kernel I/O. VisionCraft has
 no retry graph or implicit model worker fleet.
 
+The canonical [quality-gate method](../skills/visioncraft/references/quality-gates.md)
+also requires aggregate admission before workers start and leaves retry/spend
+limits with the host.
+
 ## Review sessions and authority
 
 Zeroshot's software-change workflow retains the worker session for repairs and
@@ -63,6 +67,12 @@ mutated source/evidence. Host orchestration owns checkpoint recovery, including
 writer quiescence and credential refresh. The foreground VisionCraft CLI owns
 its child process group and cancels it on interruption; it is not a detached
 controller. Host adapters must state which lifetime they control.
+
+The [review-evidence method](../skills/visioncraft/references/review-evidence.md#resume-from-an-explicit-checkpoint)
+now specifies predecessor attempt/checkpoint links, fresh captures, credential
+resolution, writer quiescence and checking an unknown external effect before
+retry. This is host workflow guidance; it does not claim the crate automatically
+records recovery lineage or runs a recovery service.
 
 ## Optional future consumption
 

@@ -308,6 +308,10 @@ fn assessment_binding(
         subject == &plan.subject && claimed == digest,
         "assessment plan/subject mismatch",
     )?;
+    crate::require(
+        context_limits(plan, context).is_empty(),
+        "assessment no longer binds to the current repository, configuration, inputs or revision ancestry",
+    )?;
     artifact_shape(artifact)?;
     crate::require(
         context.verified.contains(artifact),
@@ -529,6 +533,11 @@ fn expectation_report(
 /// one attempt per check: historical attempts belong in the archive, not an
 /// ambiguous bag from which the evaluator silently chooses the greenest result.
 /// Invalid input is reported as an error; missing required evidence never passes.
+///
+/// Deadlines use the runner's monotonic `elapsed_ms`; freshness and observation
+/// ordering use Unix timestamps. Wall-clock adjustments can make those durations
+/// differ, so their equality is not required. These are caller-supplied evidence
+/// fields, not authenticated clock readings or proof that an invocation ran.
 pub fn evaluate(
     plan: &QualityPlan,
     receipts: &[ExecutionReceipt],

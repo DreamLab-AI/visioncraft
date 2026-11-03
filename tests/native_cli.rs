@@ -1,5 +1,5 @@
 //! Executed native CLI contracts using local temporary Git fixtures only.
-#![cfg(all(unix, feature = "cli"))]
+#![cfg(all(target_os = "linux", not(target_env = "uclibc"), feature = "cli"))]
 
 use std::fs;
 use std::path::Path;

@@ -27,7 +27,10 @@ if cmd=='process':
  if case=='incomplete':run['phase']='running'
  (data/'runs'/f'{run_id}.json').write_text(json.dumps(run))
  for path in paths:
-  entry={'runId':run_id,'model':'fixture-model','agentType':'fixture-agent','refusal':{'refused':False},'usage':{'outputTokens':42}}
+  entry={'runId':run_id,'model':'fixture-model','agentType':'fixture-agent','refusal':{'refused':False,'skipped':[]},'usage':{'outputTokens':42}}
+  if case=='missing-skipped':del entry['refusal']['skipped']
+  if case=='null-skipped':entry['refusal']['skipped']=None
+  if case=='scalar-skipped':entry['refusal']['skipped']='unknown'
   if case=='refused':entry['refusal']['refused']=True
   if case=='partial':entry['refusal']['skipped']=[{'filePath':path,'reason':'fixture'}]
   if case=='unknown-refusal':del entry['refusal']

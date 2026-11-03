@@ -6,12 +6,20 @@
 
 use crate::plan::Invocation;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::io;
+#[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+#[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
 use std::process::{Command, Stdio};
+#[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
+use std::sync::atomic::AtomicBool;
+#[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
+use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
+#[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
 use std::thread;
+#[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Why an invocation finished. A normal exit may still have a nonzero code.
@@ -54,6 +62,7 @@ pub struct CapturedRun {
     pub error: Option<String>,
 }
 
+#[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
 fn unix_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -130,7 +139,7 @@ pub fn private_file(path: &Path) -> io::Result<File> {
     options.open(path)
 }
 
-#[cfg(unix)]
+#[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
 fn capture<R: Read + std::os::fd::AsFd + Send + 'static>(
     mut input: R,
     mut output: File,
@@ -184,16 +193,107 @@ fn capture<R: Read + std::os::fd::AsFd + Send + 'static>(
     })
 }
 
-#[cfg(unix)]
-fn signal_group(pid: u32, signal: nix::sys::signal::Signal) {
-    if let Ok(pid) = i32::try_from(pid)
-        && pid > 1
+#[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
+fn signal_owned_group(
+    child: &mut std::process::Child,
+    signal: nix::sys::signal::Signal,
+) -> io::Result<()> {
+    // WNOWAIT proves this child still belongs to us and keeps its PID allocated.
+    // In particular ECHILD must never fall through to a numeric group signal.
+    leader_exited(child)?;
+    let pid = i32::try_from(child.id()).map_err(|_| io::Error::other("invalid child PID"))?;
+    nix::sys::signal::killpg(nix::unistd::Pid::from_raw(pid), signal).map_err(io::Error::from)
+}
+
+#[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
+fn leader_exited(child: &mut std::process::Child) -> io::Result<bool> {
+    use nix::sys::wait::{Id, WaitPidFlag, WaitStatus, waitid};
+    use nix::unistd::Pid;
+    let pid = i32::try_from(child.id()).map_err(|_| io::Error::other("invalid child PID"))?;
+    if pid <= 1 {
+        return Err(io::Error::other("invalid child PID"));
+    }
+    let pid = Pid::from_raw(pid);
+    match waitid(
+        Id::Pid(pid),
+        WaitPidFlag::WEXITED | WaitPidFlag::WNOHANG | WaitPidFlag::WNOWAIT,
+    )
+    .map_err(io::Error::from)?
     {
-        let _ = nix::sys::signal::killpg(nix::unistd::Pid::from_raw(pid), signal);
+        WaitStatus::StillAlive => Ok(false),
+        WaitStatus::Exited(observed, _) | WaitStatus::Signaled(observed, _, _)
+            if observed == pid =>
+        {
+            Ok(true)
+        }
+        _ => Err(io::Error::other("unexpected child wait state")),
     }
 }
 
-#[cfg(unix)]
+#[cfg(all(test, target_os = "linux", not(target_env = "uclibc")))]
+mod lifecycle_tests {
+    use super::*;
+    use nix::unistd::{Pid, getpgid};
+    use std::os::unix::process::CommandExt;
+
+    #[test]
+    fn observed_exit_retains_leader_identity_until_explicit_reap() {
+        let mut child = Command::new("sh")
+            .args(["-c", "exit 7"])
+            .process_group(0)
+            .spawn()
+            .unwrap();
+        let pid = Pid::from_raw(i32::try_from(child.id()).unwrap());
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !leader_exited(&mut child).unwrap() {
+            assert!(Instant::now() < deadline, "fixture child did not exit");
+            thread::sleep(Duration::from_millis(5));
+        }
+        let held_group = getpgid(Some(pid));
+        let status = child.wait().unwrap();
+        assert_eq!(status.code(), Some(7));
+        assert_eq!(
+            held_group,
+            Ok(pid),
+            "exit observation must not release the PID"
+        );
+        assert_eq!(getpgid(Some(pid)), Err(nix::errno::Errno::ESRCH));
+    }
+
+    #[test]
+    fn lost_child_ownership_prevents_signalling_a_surviving_group() {
+        let mut leader = Command::new("sh")
+            .args(["-c", "read line; exit 0"])
+            .process_group(0)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let group = i32::try_from(leader.id()).unwrap();
+        let mut member = Command::new("sleep")
+            .arg("30")
+            .process_group(group)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        drop(leader.stdin.take());
+        leader.wait().unwrap(); // Simulate an incompatible external reaper.
+        let signal = signal_owned_group(&mut leader, nix::sys::signal::Signal::SIGKILL);
+        let survived = member.try_wait().unwrap().is_none();
+        let _ = member.kill();
+        member.wait().unwrap();
+        assert_eq!(
+            signal.unwrap_err().raw_os_error(),
+            Some(nix::errno::Errno::ECHILD as i32)
+        );
+        assert!(survived, "ownership failure must prevent any group signal");
+    }
+}
+
+#[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
 fn group_probe(result: Result<(), nix::errno::Errno>) -> io::Result<bool> {
     match result {
         Ok(()) => Ok(true),
@@ -202,7 +302,7 @@ fn group_probe(result: Result<(), nix::errno::Errno>) -> io::Result<bool> {
     }
 }
 
-#[cfg(unix)]
+#[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
 fn group_running(pid: u32, deadline: Instant) -> io::Result<bool> {
     use nix::sys::signal::killpg;
     use nix::unistd::Pid;
@@ -213,20 +313,11 @@ fn group_running(pid: u32, deadline: Instant) -> io::Result<bool> {
     if !group_probe(killpg(Pid::from_raw(group), None))? {
         return Ok(false);
     }
-    #[cfg(target_os = "linux")]
-    {
-        // Signal 0 proves existence, not execution: zombies still occupy groups.
-        linux_proc::group_running(group, deadline)
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        let _ = deadline;
-        // Without a supported state observer, an existing group remains unsafe.
-        Ok(true)
-    }
+    // Signal 0 proves existence, not execution: zombies still occupy groups.
+    linux_proc::group_running(group, deadline)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
 mod linux_proc {
     use super::*;
     use nix::unistd::{Pid, getpgid};
@@ -489,13 +580,17 @@ mod linux_proc {
 /// only the named variables that exist in the caller. Stdin is closed unless
 /// explicitly inherited for a transport such as Deepsec's `--files-from -`.
 ///
-/// Unix execution uses a new process group and stops that group on interruption,
-/// deadline, capture failure or lingering descendants. Non-Unix execution is
-/// explicitly unsupported rather than claiming unimplemented child cleanup.
+/// Linux execution uses a new process group and stops that group on interruption,
+/// deadline, capture failure or lingering descendants. The leader remains
+/// unreaped until every group signal is complete, preventing PID reuse during
+/// cleanup. Platforms without this supported lifecycle (including Linux uClibc)
+/// return [`io::ErrorKind::Unsupported`] before spawning a process.
 /// Linux excludes zombie/dead group members only after bounded, unrestricted
 /// proc observations, including their threads. Unknown or unreadable membership
-/// remains a failure. Other Unix systems conservatively reject any surviving
-/// process group, including unreaped zombies. No subreaper state is changed.
+/// remains a failure. No subreaper state is changed. The caller must not install
+/// competing process-wide child reapers, ignore `SIGCHLD`, or use `SA_NOCLDWAIT`:
+/// those break this runner's ownership of its children. Lost ownership prevents
+/// further group signals and is reported as capture failure, never completion.
 pub fn run_command(
     invocation: &Invocation,
     root: &Path,
@@ -523,7 +618,7 @@ pub(crate) fn run_command_with_env(
     inherit_stdin: bool,
     overrides: &std::collections::BTreeMap<String, String>,
 ) -> io::Result<CapturedRun> {
-    #[cfg(not(unix))]
+    #[cfg(not(all(target_os = "linux", not(target_env = "uclibc"))))]
     {
         let _ = (
             invocation,
@@ -535,10 +630,10 @@ pub(crate) fn run_command_with_env(
         );
         Err(io::Error::new(
             io::ErrorKind::Unsupported,
-            "bounded process groups require Unix",
+            "bounded execution requires Linux with supported non-reaping child observation",
         ))
     }
-    #[cfg(unix)]
+    #[cfg(all(target_os = "linux", not(target_env = "uclibc")))]
     {
         use nix::sys::signal::Signal;
         use std::os::unix::process::{CommandExt, ExitStatusExt};
@@ -627,7 +722,8 @@ pub(crate) fn run_command_with_env(
             stop_capture.clone(),
             invocation.max_output_bytes,
         );
-        let mut status = None;
+        let mut exited = false;
+        let mut owns_child = true;
         result.termination = loop {
             if cancelled.load(Ordering::SeqCst) {
                 break Termination::Interrupted;
@@ -638,13 +734,14 @@ pub(crate) fn run_command_with_env(
             if fault.load(Ordering::SeqCst) != 0 {
                 break Termination::CaptureFailed;
             }
-            match child.try_wait() {
-                Ok(Some(exit)) => {
-                    status = Some(exit);
+            match leader_exited(&mut child) {
+                Ok(true) => {
+                    exited = true;
                     break Termination::Completed;
                 }
-                Ok(None) => thread::sleep(Duration::from_millis(10)),
+                Ok(false) => thread::sleep(Duration::from_millis(10)),
                 Err(_) => {
+                    owns_child = false;
                     result.error = Some("could not observe process exit".into());
                     break Termination::CaptureFailed;
                 }
@@ -683,22 +780,39 @@ pub(crate) fn run_command_with_env(
             }
         }
         if result.termination != Termination::Completed {
-            signal_group(pid, Signal::SIGINT);
+            if owns_child && signal_owned_group(&mut child, Signal::SIGINT).is_err() {
+                owns_child = false;
+                result.error = Some("could not safely signal the owned process group".into());
+            }
             let grace = Instant::now();
-            while grace.elapsed() < Duration::from_millis(250) {
-                if status.is_none() {
-                    status = child.try_wait().ok().flatten();
+            while owns_child && grace.elapsed() < Duration::from_millis(250) {
+                if !exited {
+                    match leader_exited(&mut child) {
+                        Ok(done) => exited = done,
+                        Err(_) => {
+                            owns_child = false;
+                            result.error =
+                                Some("lost ownership of the process group leader".into());
+                            break;
+                        }
+                    }
                 }
-                if stdout.is_finished() && stderr.is_finished() && status.is_some() {
+                if stdout.is_finished() && stderr.is_finished() && exited {
                     break;
                 }
                 thread::sleep(Duration::from_millis(10));
             }
-            signal_group(pid, Signal::SIGKILL);
+            if owns_child && signal_owned_group(&mut child, Signal::SIGKILL).is_err() {
+                owns_child = false;
+                result.error = Some("could not safely stop the owned process group".into());
+            }
             stop_capture.store(true, Ordering::SeqCst);
         }
+        // This is the only reaping point, after the final possible group signal.
+        let status = owns_child.then(|| child.wait().ok()).flatten();
         if status.is_none() {
-            status = child.wait().ok();
+            result.termination = Termination::CaptureFailed;
+            result.error = Some("could not reap the owned process group leader".into());
         }
         for capture in [stdout, stderr] {
             if !matches!(capture.join(), Ok(Ok(()))) {
