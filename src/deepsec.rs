@@ -19,7 +19,15 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 #[path = "deepsec_evidence.rs"]
 mod recorded;
 
-const VERSION: &str = "2.3.10";
+static PROTOCOL: std::sync::LazyLock<Value> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("../contracts/deepsec.json"))
+        .expect("checked-in Deepsec release contract must be valid JSON")
+});
+fn supported_version() -> &'static str {
+    PROTOCOL["package"]["version"]
+        .as_str()
+        .expect("release contract version")
+}
 const SEVERITIES: [&str; 6] = ["CRITICAL", "HIGH", "MEDIUM", "HIGH_BUG", "BUG", "LOW"];
 static ATTEMPT: AtomicU64 = AtomicU64::new(0);
 
@@ -237,7 +245,7 @@ pub struct DeepsecOptions {
     /// Read newline-delimited file paths, or `-` for stdin.
     #[arg(long)]
     pub files_from: Option<PathBuf>,
-    /// Scan and process the entire repository.
+    /// Scan the repository and process its pending candidates.
     #[arg(long)]
     pub full: bool,
     /// Scan without model processing; result is SCANNED, not review PASS.
@@ -680,7 +688,7 @@ pub fn execute(options: &DeepsecOptions, cancelled: &AtomicBool) -> Result<i32, 
         if !policy.ai_base_url.is_empty() {
             route["baseUrl"] = json!(policy.ai_base_url);
         }
-        let plan = json!({"version":1,"attempt_id":attempt_id,"mode":mode,"diff_ref":options.diff,"files_from":files,"root":root,"project_id":project_id,"workspace":workspace,"report_dir":report,"deepsec_version_required":VERSION,"policy":policy,"route":route});
+        let plan = json!({"version":1,"attempt_id":attempt_id,"mode":mode,"diff_ref":options.diff,"files_from":files,"root":root,"project_id":project_id,"workspace":workspace,"report_dir":report,"deepsec_version_required":supported_version(),"deepsec_protocol_version":PROTOCOL["adapter_protocol_version"],"policy":policy,"route":route});
         if options.dry_run {
             println!(
                 "{}",
@@ -749,6 +757,7 @@ pub fn execute(options: &DeepsecOptions, cancelled: &AtomicBool) -> Result<i32, 
         };
         let mut revision = "unknown".to_owned();
         let mut dirty: Option<bool> = None;
+        let mut observed_version: Option<String> = None;
         let outcome = (|| -> Result<Value, GateError> {
             let (rc, version) = attempt.command(
                 "version",
@@ -758,12 +767,19 @@ pub fn execute(options: &DeepsecOptions, cancelled: &AtomicBool) -> Result<i32, 
                 false,
                 false,
             )?;
-            if rc != 0
-                || String::from_utf8_lossy(&version)
-                    .trim()
-                    .trim_start_matches("deepsec ")
-                    != VERSION
+            let version_text = String::from_utf8_lossy(&version)
+                .trim()
+                .trim_start_matches("deepsec ")
+                .to_owned();
+            // Store only the bounded version token, never arbitrary subprocess output.
+            if version_text.len() <= 64
+                && version_text
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b".+-_".contains(&b))
             {
+                observed_version = Some(version_text.clone());
+            }
+            if rc != 0 || version_text != supported_version() {
                 return Err(error(
                     78,
                     "Deepsec version does not match the verified 2.3.10 protocol",
@@ -943,7 +959,7 @@ pub fn execute(options: &DeepsecOptions, cancelled: &AtomicBool) -> Result<i32, 
             ),
         };
         let object = receipt.as_object_mut().expect("receipt object");
-        object.extend(json!({"schema_version":1,"gate":"deepsec","attempt_id":attempt_id,"mode":mode,"revision":revision,"dirty":dirty,"deepsec_version":VERSION,"policy_source":policy.policy_source,"fail_on":policy.fail_on,"report_dir":report,"state_dir":workspace,"elapsed_ms":attempt.started.elapsed().as_millis(),"plan_sha256":sha256(&serde_json::to_vec(&plan).map_err(|_|error(70,"plan encoding failed"))?)}).as_object().expect("object").clone());
+        object.extend(json!({"schema_version":1,"gate":"deepsec","attempt_id":attempt_id,"mode":mode,"revision":revision,"dirty":dirty,"deepsec_version":observed_version,"deepsec_version_required":supported_version(),"deepsec_git_head":PROTOCOL["package"]["git_head"],"deepsec_npm_integrity":PROTOCOL["package"]["integrity"],"deepsec_protocol_version":PROTOCOL["adapter_protocol_version"],"release_identity_boundary":"Expected upstream identity; installed package bytes are verified by the host. CLI version was observed separately.","policy_source":policy.policy_source,"fail_on":policy.fail_on,"report_dir":report,"state_dir":workspace,"elapsed_ms":attempt.started.elapsed().as_millis(),"plan_sha256":sha256(&serde_json::to_vec(&plan).map_err(|_|error(70,"plan encoding failed"))?)}).as_object().expect("object").clone());
         write_new(
             &report.join("receipt.json"),
             &serde_json::to_vec_pretty(&receipt)
@@ -968,8 +984,10 @@ mod tests {
         for bad in ["NaNs", "-1s", "0s", "100d", "1.2.3s"] {
             assert_eq!(duration_ms(bad), None);
         }
-        let mut policy = DeepsecPolicy::default();
-        policy.ai_base_url = "https://user:password@example.com".into();
+        let policy = DeepsecPolicy {
+            ai_base_url: "https://user:password@example.com".into(),
+            ..DeepsecPolicy::default()
+        };
         assert!(policy.validate().is_err());
         assert!(DeepsecPolicy::default().validate().is_ok());
     }

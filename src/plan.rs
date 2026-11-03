@@ -7,6 +7,13 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+/// Maximum number of declared checks, including optional checks, in one plan.
+pub const MAX_PLAN_CHECKS: usize = 1024;
+/// Maximum sum of declared command deadlines: one day, excluding bounded cleanup.
+pub const MAX_PLAN_DURATION_MS: u64 = 86_400_000;
+/// Maximum sum of declared stdout/stderr capture bounds: one GiB per plan.
+pub const MAX_PLAN_OUTPUT_BYTES: u64 = 1_073_741_824;
+
 /// Immutable code and configuration identity examined by a plan.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -287,6 +294,10 @@ impl QualityPlan {
     /// Returns the first contract violation, without reading external resources.
     pub fn validate(&self) -> Result<(), ContractError> {
         require(self.version == 1, "unsupported plan version")?;
+        require(
+            self.checks.len() <= MAX_PLAN_CHECKS,
+            "plan check count exceeds admission ceiling",
+        )?;
         require(identifier(&self.id), "invalid plan id")?;
         self.subject.validate()?;
         require(
@@ -299,12 +310,28 @@ impl QualityPlan {
         )?;
         let inputs: BTreeSet<_> = self.subject.inputs.iter().map(|x| &x.path).collect();
         let mut ids = BTreeSet::new();
+        let mut duration = 0_u64;
+        let mut output_bytes = 0_u64;
         for c in &self.checks {
             require(
                 identifier(&c.id) && ids.insert(&c.id),
                 "invalid or duplicate check id",
             )?;
             c.invocation.validate()?;
+            duration = duration
+                .checked_add(c.invocation.timeout_ms)
+                .ok_or_else(|| ContractError::Invalid("aggregate deadline overflow".into()))?;
+            output_bytes = output_bytes
+                .checked_add(c.invocation.max_output_bytes)
+                .ok_or_else(|| ContractError::Invalid("aggregate capture overflow".into()))?;
+            require(
+                duration <= MAX_PLAN_DURATION_MS,
+                "aggregate declared deadlines exceed one day",
+            )?;
+            require(
+                output_bytes <= MAX_PLAN_OUTPUT_BYTES,
+                "aggregate declared captures exceed one GiB",
+            )?;
             require(!c.scope.is_empty(), "check scope cannot be empty")?;
             let mut scope = BTreeSet::new();
             for p in &c.scope {

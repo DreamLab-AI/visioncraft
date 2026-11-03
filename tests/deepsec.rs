@@ -2,7 +2,7 @@
 #![cfg(all(unix, feature = "cli"))]
 use serde_json::{Value, json};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Output};
 struct Fixture {
     _temp: tempfile::TempDir,

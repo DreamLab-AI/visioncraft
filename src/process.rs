@@ -210,9 +210,36 @@ pub fn run_command(
     cancelled: &AtomicBool,
     inherit_stdin: bool,
 ) -> io::Result<CapturedRun> {
+    run_command_with_env(
+        invocation,
+        root,
+        output,
+        cancelled,
+        inherit_stdin,
+        &std::collections::BTreeMap::new(),
+    )
+}
+
+// Internal fixed-value metadata policy only. User checks declare inherited
+// names in Invocation; their values are deliberately absent from receipts.
+pub(crate) fn run_command_with_env(
+    invocation: &Invocation,
+    root: &Path,
+    output: &Path,
+    cancelled: &AtomicBool,
+    inherit_stdin: bool,
+    overrides: &std::collections::BTreeMap<String, String>,
+) -> io::Result<CapturedRun> {
     #[cfg(not(unix))]
     {
-        let _ = (invocation, root, output, cancelled, inherit_stdin);
+        let _ = (
+            invocation,
+            root,
+            output,
+            cancelled,
+            inherit_stdin,
+            overrides,
+        );
         Err(io::Error::new(
             io::ErrorKind::Unsupported,
             "bounded process groups require Unix",
@@ -273,6 +300,7 @@ pub fn run_command(
                 command.env(name, value);
             }
         }
+        command.envs(overrides);
         let mut child = match command.spawn() {
             Ok(child) => child,
             Err(err) => {

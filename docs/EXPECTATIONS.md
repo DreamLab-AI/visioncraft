@@ -13,14 +13,17 @@ and inventory retained in Agentbox docs/developer/visioncraft-handoff/.
 3. Required missing/failed/skipped/unknown evidence never becomes PASS. Preserve
    actual errors and successful controls; schema, scope and bytes are explicit.
 4. Commands run only through explicit run/security operations, as argv with a
-   deadline/output bounds, complete child cleanup and private evidence. Imported
+   deadline/output bounds, process-group cleanup and private evidence. Imported
    receipts, inspection and reports never execute their contents.
 5. Consume Sealmap 0.4 for disposition and family contracts; delegate existing
    receipt byte checks to Sealmap. Preserve separate source/test/merge/publish/
    adoption/deployment facts. A runner is not a sandbox.
 6. Replace the actual Deepsec compatibility consumer and migrate Agentbox
-   registries, routes, resources and CI. Keep the legacy name/script paths as
-   thin adapters to one canonical payload. Generic use needs no Agentbox.
+   registries, routes, resources and CI. Once green, remove the old active skill
+   and implementation; the operator authorised a hard cutover and will rebuild.
+   Jev and both harness registries must select the canonical VisionCraft payload.
+   Generic use needs no Agentbox. Consume Agentic QE through its separate upstream
+   CLI/MCP surface, with versioned contracts and no copied QE engine.
 7. Publish complete docs/licences/rustdoc/examples and execute offline regression
    controls, package checks, independent review and registry-consumer checks.
    Skill-builder compliance is distinct from measured skill-tuning results.

@@ -123,3 +123,7 @@ pub mod process;
 /// Versioned adapter for an independently installed Deepsec reviewer.
 #[cfg(feature = "cli")]
 pub mod deepsec;
+
+/// Explicit command-line and filesystem adapter for the quality core.
+#[cfg(feature = "cli")]
+pub mod cli;

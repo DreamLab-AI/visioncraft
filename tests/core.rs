@@ -632,3 +632,41 @@ fn a_supplied_contradiction_cannot_be_ignored_as_unrequested_optional_metadata()
     context.audits = &audits;
     assert!(!evaluate(&plan, &runs, &context).passed());
 }
+
+#[test]
+fn valid_individual_checks_cannot_form_an_unbounded_aggregate_plan() {
+    let mut p = plan();
+    p.checks.truncate(2);
+    for check in &mut p.checks {
+        check.invocation.timeout_ms = 43_200_000;
+        check.invocation.max_output_bytes = 536_870_912;
+    }
+    assert!(
+        p.validate().is_ok(),
+        "exact aggregate ceilings remain usable"
+    );
+    p.checks[1].invocation.timeout_ms += 1;
+    assert!(
+        p.validate().is_err(),
+        "individually valid deadlines cannot exceed the whole-plan ceiling"
+    );
+    p.checks[1].invocation.timeout_ms -= 1;
+    p.checks[1].invocation.max_output_bytes += 1;
+    assert!(
+        p.validate().is_err(),
+        "individually valid captures cannot exceed the aggregate ceiling"
+    );
+    let mut p = plan();
+    let seed = p.checks[0].clone();
+    p.checks = (0..1025)
+        .map(|n| {
+            let mut c = seed.clone();
+            c.id = format!("check-{n}");
+            c
+        })
+        .collect();
+    assert!(
+        p.validate().is_err(),
+        "required and optional checks share admission limits"
+    );
+}

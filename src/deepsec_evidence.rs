@@ -232,6 +232,21 @@ pub(super) fn validate_review(
             runs.push(value);
         }
     }
+    let records: BTreeMap<_, _> = expected
+        .iter()
+        .map(|artifact| {
+            (
+                artifact.path.clone(),
+                file_record(data, &artifact.path).unwrap_or(Value::Null),
+            )
+        })
+        .collect();
+    // Preserve rejected state as well as successful observations. The decoder's
+    // raw state remains private; a null entry means its file could not be read.
+    let evidence = json!({"runs":runs,"files":records});
+    let bytes = serde_json::to_vec_pretty(&evidence)
+        .map_err(|_| error(70, "review evidence encoding failed"))?;
+    write_new(&report.join("review-evidence.json"), &bytes)?;
     if runs.len() != 1 {
         return Err(error(70, "missing or ambiguous fresh processing run"));
     }
@@ -251,9 +266,8 @@ pub(super) fn validate_review(
             "processing run is incomplete or covers another scope",
         ));
     }
-    let mut records = BTreeMap::new();
     for artifact in expected {
-        let record = file_record(data, &artifact.path)?;
+        let record = &records[&artifact.path];
         if record["filePath"] != artifact.path
             || record["projectId"] != project
             || record["fileHash"] != artifact.sha256
@@ -296,12 +310,7 @@ pub(super) fn validate_review(
                 "review lacks actual model identity or output evidence",
             ));
         }
-        records.insert(artifact.path.clone(), record);
     }
-    let evidence = json!({"run":run,"files":records});
-    let bytes = serde_json::to_vec_pretty(&evidence)
-        .map_err(|_| error(70, "review evidence encoding failed"))?;
-    write_new(&report.join("review-evidence.json"), &bytes)?;
     Ok(
         json!({"run_id":run_id,"observed_files":expected.iter().map(|a|&a.path).collect::<Vec<_>>(),"evidence_sha256":sha256(&bytes),"coverage_boundary":"Recorded per-file investigations of exact selected bytes; dependencies and runtime behaviour remain outside this observation."}),
     )
