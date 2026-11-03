@@ -117,7 +117,7 @@ endpoint uses OpenAI-style `/v1/embeddings`; otherwise it tries an optional loca
 transformer package. Do not install that package or start another embedding
 service as a side effect of using the skill.
 
-AQE defaults to `Xenova/all-MiniLM-L6-v2`, with 384
+AQE defaults to `Xenova/all-MiniLM-L6-v2`, with 384 <!-- lint-ok: version-pinned upstream default, not the estate embedding model -->
 dimensions. Matching dimensions alone do not make it interchangeable with
 another model. Reusing a host endpoint requires a supported model-selection
 contract and verified identity, not merely the same vector length. If no valid
