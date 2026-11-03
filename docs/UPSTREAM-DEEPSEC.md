@@ -96,6 +96,21 @@ release, change default models, initialise accounts or start paid reviews.
 
 ## Host responsibilities
 
+The invoking user and host-projected policy are trusted configuration. Treat
+`--policy-json`, executable lookup through `PATH`, credential environment names
+and provider URLs with the same authority as starting the reviewer directly.
+Never derive them from an untrusted repository's contents. HTTP remains available
+for explicitly configured local providers; the host owns transport and endpoint
+approval. A name prefix would not establish that trust or authorise a recipient.
+
+Metadata probes share the native CLI's restricted Git environment and disable
+repository filesystem-monitor hooks. Review checkpoints reject symlinks, hard
+links and special files throughout the bounded state tree before invoking
+Deepsec, and rewrite their ignore file privately. Existing ordinary checkpoint
+records are not proof of a fresh review: current run identity and exact source
+hashes remain required. These checks do not isolate concurrent writers with the
+same Unix identity or the reviewer's own tools.
+
 VisionCraft never implicitly installs Deepsec, runs `init` or login, changes
 global defaults, or chooses a new credential provider. It does not create a
 sandbox: the invoked reviewer and its children have the authority granted by

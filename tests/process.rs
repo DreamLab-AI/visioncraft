@@ -110,6 +110,89 @@ fn output_limit_and_lingering_background_processes_cannot_pass() {
     assert_eq!(result.termination, Termination::CaptureFailed);
 }
 
+#[cfg(target_os = "linux")]
+fn completed_leader_with_group_member(exited: bool) -> visioncraft::process::CapturedRun {
+    use std::os::unix::process::CommandExt;
+    use std::process::{Child, Command, Stdio};
+
+    struct Reap(Child);
+    impl Drop for Reap {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
+    let root = tempfile::tempdir().unwrap();
+    let out = root.path().join("attempt");
+    private_directory(&out).unwrap();
+    std::thread::scope(|scope| {
+        let worker = scope.spawn(|| {
+            run_command(
+                &invocation(
+                    "printf '%s' \"$$\" > group; while [ ! -e release ]; do sleep 0.01; done",
+                ),
+                root.path(),
+                &out,
+                &AtomicBool::new(false),
+                false,
+            )
+            .unwrap()
+        });
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let group = loop {
+            if let Ok(raw) = fs::read_to_string(root.path().join("group"))
+                && let Ok(pid) = raw.parse::<i32>()
+            {
+                break pid;
+            }
+            assert!(Instant::now() < deadline, "fixture leader did not start");
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        // The test owns this member, so its zombie is reproducible even with a
+        // reaping init, and cleanup can wait it without changing subreaper state.
+        let member = Reap(
+            Command::new("sh")
+                .args(["-c", if exited { "exit 0" } else { "exec sleep 30" }])
+                .process_group(group)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .unwrap(),
+        );
+        if exited {
+            loop {
+                let stat = fs::read_to_string(format!("/proc/{}/stat", member.0.id())).unwrap();
+                if stat.rsplit_once(") ").unwrap().1.starts_with("Z ") {
+                    break;
+                }
+                assert!(Instant::now() < deadline, "fixture member did not exit");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+        fs::write(root.path().join("release"), "ready").unwrap();
+        let result = worker.join().unwrap();
+        drop(member);
+        result
+    })
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn exited_unreaped_group_member_does_not_fail_completed_capture() {
+    let result = completed_leader_with_group_member(true);
+    assert_eq!(result.termination, Termination::Completed, "{result:?}");
+    assert_eq!(result.exit_code, Some(0));
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn live_group_member_with_closed_streams_cannot_pass() {
+    let result = completed_leader_with_group_member(false);
+    assert_eq!(result.termination, Termination::CaptureFailed, "{result:?}");
+}
+
 #[test]
 fn cancellation_and_missing_program_are_explicit() {
     let root = tempfile::tempdir().unwrap();

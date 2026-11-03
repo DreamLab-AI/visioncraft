@@ -3,6 +3,11 @@
 //! Evaluation only reads source and evidence plus fixed Git metadata commands.
 //! Commands in imported receipts are never replayed. All source coverage and test
 //! observations remain unknown unless supplied by an actual observer/adapter.
+//! Repository and configuration labels are caller declarations, never inferred
+//! identities or independently verified configuration digests. Their freshness
+//! is unverified without `--current-subject`; that option attests current labels
+//! while the CLI independently checks its selected source snapshot. Include
+//! actual configuration artifacts in the selected inputs to verify their bytes.
 
 use std::collections::BTreeSet;
 use std::fs::{self, File};
@@ -96,9 +101,10 @@ struct InitOptions {
     id: String,
     #[arg(long, default_value = "check")]
     check: String,
+    /// Caller-declared component label; defaults to the root directory name.
     #[arg(long)]
     repository: Option<String>,
-    /// Features, target and fixture relevant to this check.
+    /// Caller-declared features/target/fixture label, not an observed digest.
     #[arg(long)]
     configuration: String,
     #[arg(long, default_value = ".")]
@@ -144,7 +150,8 @@ struct EvaluateOptions {
     /// relative to this file's parent, which must be a private evidence root.
     #[arg(long)]
     context: Option<PathBuf>,
-    /// Optional current-subject JSON, verified against the actual selected files.
+    /// Attest current repository/configuration labels in Subject JSON; source
+    /// fields are checked against disk. Labels/digests are not auto-discovered.
     #[arg(long)]
     current_subject: Option<PathBuf>,
     /// Inject evaluation time in Unix milliseconds; defaults to the current clock.
@@ -349,18 +356,8 @@ fn git(root: &Path, args: &[&str], cancelled: &AtomicBool) -> Result<GitOutput, 
     } else {
         MAX_JSON
     };
-    let mut argv: Vec<String> = [
-        "--no-pager",
-        "--literal-pathspecs",
-        "-c",
-        "core.fsmonitor=false",
-        "-c",
-        "core.untrackedCache=false",
-        "-C",
-    ]
-    .into_iter()
-    .map(str::to_owned)
-    .collect();
+    let mut argv = crate::git_metadata::prefix();
+    argv.push("-C".into());
     argv.push(
         root.to_str()
             .ok_or_else(|| {
@@ -372,17 +369,7 @@ fn git(root: &Path, args: &[&str], cancelled: &AtomicBool) -> Result<GitOutput, 
             .into(),
     );
     argv.extend(args.iter().map(|arg| (*arg).to_owned()));
-    let fixed: std::collections::BTreeMap<String, String> = [
-        ("GIT_OPTIONAL_LOCKS", "0"),
-        ("GIT_NO_LAZY_FETCH", "1"),
-        ("GIT_NO_REPLACE_OBJECTS", "1"),
-        ("GIT_TERMINAL_PROMPT", "0"),
-        ("GIT_CONFIG_NOSYSTEM", "1"),
-        ("GIT_CONFIG_GLOBAL", "/dev/null"),
-    ]
-    .into_iter()
-    .map(|(name, value)| (name.into(), value.into()))
-    .collect();
+    let fixed = crate::git_metadata::fixed_environment();
     let mut env = vec!["PATH".into()];
     env.extend(fixed.keys().cloned());
     let invocation = Invocation {
@@ -689,10 +676,10 @@ fn evidence_parent(root: &Path, path: &str) -> Result<PathBuf, CliError> {
         return Err(error(2, "artifact output path is not confined"));
     }
     let path = root.join(path);
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            process::private_directory(parent).map_err(io_error)?;
-        }
+    if let Some(parent) = path.parent()
+        && !parent.exists()
+    {
+        process::private_directory(parent).map_err(io_error)?;
     }
     output_path(&path)
 }
@@ -986,9 +973,7 @@ fn evaluate_options(options: EvaluateOptions, cancelled: &AtomicBool) -> Result<
         let (_, bytes) = read_explicit(path, MAX_JSON)?;
         let supplied: Subject = crate::from_json(&bytes).map_err(invalid)?;
         supplied.validate().map_err(invalid)?;
-        if supplied.repository != current.repository
-            || supplied.configuration != current.configuration
-            || supplied.revision != current.revision
+        if supplied.revision != current.revision
             || supplied.inputs != current.inputs
             || supplied.dirty != current.dirty
         {
@@ -997,6 +982,11 @@ fn evaluate_options(options: EvaluateOptions, cancelled: &AtomicBool) -> Result<
                 "supplied current subject contradicts the observed source snapshot",
             ));
         }
+        // These opaque labels come from the current caller, not from Git or a
+        // copy of the reviewed plan. The core can now detect attested drift;
+        // matching labels remain attestations rather than independent proof.
+        current.repository = supplied.repository;
+        current.configuration = supplied.configuration;
     }
     let mut verified = VerifiedArtifacts::default();
     let mut receipts = Vec::new();
@@ -1051,8 +1041,20 @@ fn evaluate_options(options: EvaluateOptions, cancelled: &AtomicBool) -> Result<
             .map_err(invalid)?;
     }
     let report = crate::evaluate(&plan, &receipts, &context);
+    let label_basis = if options.current_subject.is_some() {
+        "caller-attested"
+    } else {
+        "plan-declared-unverified"
+    };
     if options.json {
-        print_json(&report)?;
+        let mut output = serde_json::to_value(&report).map_err(invalid)?;
+        output["freshness"] = serde_json::json!({
+            "source_snapshot": "observed",
+            "repository": label_basis,
+            "configuration": label_basis,
+            "configuration_artifacts": "selected-inputs-only"
+        });
+        print_json(&output)?;
     } else {
         println!(
             "{:?}: {}/{} required checks passed; {} expectation(s)",
@@ -1060,6 +1062,9 @@ fn evaluate_options(options: EvaluateOptions, cancelled: &AtomicBool) -> Result<
             report.passed_required_checks,
             report.required_checks,
             report.expectations.len()
+        );
+        println!(
+            "Repository/configuration freshness: {label_basis}; labels and digests are not independently verified (select configuration artifacts as inputs)."
         );
         for check in &report.checks {
             println!(

@@ -183,10 +183,10 @@ pub(super) fn run_files(data: &Path) -> Result<BTreeSet<String>, GateError> {
         if set.len() >= 100_000 {
             return Err(error(70, "review history exceeds limit"));
         }
-        if let Some(name) = item.file_name().to_str() {
-            if name.ends_with(".json") {
-                set.insert(name.to_owned());
-            }
+        if let Some(name) = item.file_name().to_str()
+            && name.ends_with(".json")
+        {
+            set.insert(name.to_owned());
         }
     }
     Ok(set)

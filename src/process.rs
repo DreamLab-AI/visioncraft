@@ -186,9 +186,298 @@ fn capture<R: Read + std::os::fd::AsFd + Send + 'static>(
 
 #[cfg(unix)]
 fn signal_group(pid: u32, signal: nix::sys::signal::Signal) {
-    if let Ok(pid) = i32::try_from(pid) {
-        if pid > 1 {
-            let _ = nix::sys::signal::killpg(nix::unistd::Pid::from_raw(pid), signal);
+    if let Ok(pid) = i32::try_from(pid)
+        && pid > 1
+    {
+        let _ = nix::sys::signal::killpg(nix::unistd::Pid::from_raw(pid), signal);
+    }
+}
+
+#[cfg(unix)]
+fn group_probe(result: Result<(), nix::errno::Errno>) -> io::Result<bool> {
+    match result {
+        Ok(()) => Ok(true),
+        Err(nix::errno::Errno::ESRCH) => Ok(false),
+        Err(error) => Err(io::Error::from(error)),
+    }
+}
+
+#[cfg(unix)]
+fn group_running(pid: u32, deadline: Instant) -> io::Result<bool> {
+    use nix::sys::signal::killpg;
+    use nix::unistd::Pid;
+    let group = i32::try_from(pid)
+        .ok()
+        .filter(|pid| *pid > 1)
+        .ok_or_else(|| io::Error::other("invalid process group"))?;
+    if !group_probe(killpg(Pid::from_raw(group), None))? {
+        return Ok(false);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // Signal 0 proves existence, not execution: zombies still occupy groups.
+        linux_proc::group_running(group, deadline)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = deadline;
+        // Without a supported state observer, an existing group remains unsafe.
+        Ok(true)
+    }
+}
+
+#[cfg(target_os = "linux")]
+mod linux_proc {
+    use super::*;
+    use nix::unistd::{Pid, getpgid};
+    use std::collections::BTreeSet;
+
+    fn unknown() -> io::Error {
+        io::Error::other("process group state could not be established")
+    }
+
+    fn bounded_read(path: &Path, limit: u64) -> io::Result<Vec<u8>> {
+        let mut bytes = Vec::new();
+        File::open(path)?.take(limit + 1).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > limit {
+            return Err(unknown());
+        }
+        Ok(bytes)
+    }
+
+    // comm may contain spaces, parentheses, newlines or non-UTF-8 bytes. Only
+    // parse the numeric prefix and fields after the final closing parenthesis.
+    fn state(bytes: &[u8], expected_pid: u32, expected_group: Option<i32>) -> io::Result<u8> {
+        let space = bytes.iter().position(|c| *c == b' ').ok_or_else(unknown)?;
+        let close = bytes
+            .windows(2)
+            .rposition(|s| s == b") ")
+            .ok_or_else(unknown)?;
+        let pid = std::str::from_utf8(&bytes[..space])
+            .ok()
+            .and_then(|s| s.parse::<u32>().ok());
+        if pid != Some(expected_pid) || bytes.get(space + 1) != Some(&b'(') || close <= space + 1 {
+            return Err(unknown());
+        }
+        let text = std::str::from_utf8(&bytes[close + 2..]).map_err(|_| unknown())?;
+        let mut fields = text.split_ascii_whitespace();
+        let status = fields
+            .next()
+            .filter(|s| s.len() == 1)
+            .ok_or_else(unknown)?
+            .as_bytes()[0];
+        fields
+            .next()
+            .and_then(|s| s.parse::<u32>().ok())
+            .ok_or_else(unknown)?;
+        let group = fields
+            .next()
+            .and_then(|s| s.parse::<i32>().ok())
+            .ok_or_else(unknown)?;
+        if expected_group.is_some_and(|expected| group != expected) {
+            return Err(unknown());
+        }
+        Ok(status)
+    }
+
+    fn unrestricted(mounts: &str) -> bool {
+        let mut found = false;
+        for line in mounts.lines() {
+            let fields: Vec<_> = line.split_ascii_whitespace().collect();
+            if fields.get(1) == Some(&"/proc") {
+                if fields.get(2) != Some(&"proc") {
+                    return false;
+                }
+                let Some(options) = fields.get(3) else {
+                    return false;
+                };
+                if options
+                    .split(',')
+                    .any(|o| o.starts_with("hidepid=") && o != "hidepid=0" && o != "hidepid=off")
+                {
+                    return false;
+                }
+                found = true;
+            }
+        }
+        found
+    }
+
+    fn ids(path: &Path, deadline: Instant) -> io::Result<Vec<u32>> {
+        let mut ids = Vec::new();
+        for entry in fs::read_dir(path)? {
+            if Instant::now() >= deadline {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "process observation deadline",
+                ));
+            }
+            let name = entry?.file_name();
+            if let Some(id) = name.to_str().and_then(|s| s.parse::<u32>().ok()) {
+                ids.push(id);
+                if ids.len() > 65_536 {
+                    return Err(unknown());
+                }
+            }
+        }
+        Ok(ids)
+    }
+
+    fn dead(state: u8) -> bool {
+        matches!(state, b'Z' | b'X' | b'x')
+    }
+
+    fn no_longer_member(pid: u32, group: i32) -> io::Result<bool> {
+        match getpgid(Some(Pid::from_raw(
+            i32::try_from(pid).map_err(|_| unknown())?,
+        ))) {
+            Ok(actual) => Ok(actual.as_raw() != group),
+            Err(nix::errno::Errno::ESRCH) => Ok(true),
+            Err(error) => Err(io::Error::from(error)),
+        }
+    }
+
+    fn tasks_dead(process: &Path, group: i32, deadline: Instant) -> io::Result<bool> {
+        let tasks = ids(&process.join("task"), deadline)?;
+        if tasks.is_empty() {
+            return Err(unknown());
+        }
+        for tid in tasks {
+            let record = match bounded_read(&process.join(format!("task/{tid}/stat")), 8192) {
+                Ok(record) => record,
+                Err(error)
+                    if error.kind() == io::ErrorKind::NotFound && no_longer_member(tid, group)? =>
+                {
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            if !dead(state(&record, tid, Some(group))?) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    fn dead_members(group: i32, deadline: Instant) -> io::Result<Option<BTreeSet<u32>>> {
+        let mut members = BTreeSet::new();
+        for pid in ids(Path::new("/proc"), deadline)? {
+            if no_longer_member(pid, group)? {
+                continue;
+            }
+            let process = PathBuf::from(format!("/proc/{pid}"));
+            let record = match bounded_read(&process.join("stat"), 8192) {
+                Ok(record) => record,
+                Err(error)
+                    if error.kind() == io::ErrorKind::NotFound && no_longer_member(pid, group)? =>
+                {
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            if !dead(state(&record, pid, Some(group))?) {
+                return Ok(None);
+            }
+            // A zombie thread-group leader can still have executing threads.
+            // Missing/unreadable task information cannot prove they have exited.
+            match tasks_dead(&process, group, deadline) {
+                Ok(true) => (),
+                Ok(false) => return Ok(None),
+                Err(error)
+                    if error.kind() == io::ErrorKind::NotFound && no_longer_member(pid, group)? =>
+                {
+                    continue;
+                }
+                Err(error) => return Err(error),
+            }
+            members.insert(pid);
+        }
+        Ok(Some(members))
+    }
+
+    pub(super) fn group_running(group: i32, deadline: Instant) -> io::Result<bool> {
+        let mounts = bounded_read(Path::new("/proc/mounts"), 1_048_576)?;
+        if !unrestricted(std::str::from_utf8(&mounts).map_err(|_| unknown())?) {
+            return Err(unknown());
+        }
+        // A proc mount for another PID namespace cannot establish membership.
+        state(
+            &bounded_read(Path::new("/proc/self/stat"), 8192)?,
+            std::process::id(),
+            None,
+        )?;
+        let mut previous = None;
+        for _ in 0..3 {
+            let Some(members) = dead_members(group, deadline)? else {
+                return Ok(true);
+            };
+            if members.is_empty() {
+                return if super::group_probe(nix::sys::signal::killpg(Pid::from_raw(group), None))?
+                {
+                    Err(unknown())
+                } else {
+                    Ok(false)
+                };
+            }
+            // Retry only changes to this group. Unrelated process churn must not
+            // make a completed command fail on a busy host.
+            if previous.as_ref() == Some(&members) {
+                return Ok(false);
+            }
+            previous = Some(members);
+        }
+        Err(unknown())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn stat_handles_unusual_names_and_never_calls_live_states_dead() {
+            for status in b"RS DTtWKPIZXx".iter().filter(|c| **c != b' ') {
+                let mut record = b"123 (odd ) \xff name) ".to_vec();
+                record.push(*status);
+                record.extend_from_slice(b" 1 456 0 0");
+                let observed = state(&record, 123, Some(456)).unwrap();
+                assert_eq!(dead(observed), matches!(status, b'Z' | b'X' | b'x'));
+            }
+            assert!(state(b"123 (test) Z 1 456", 124, Some(456)).is_err());
+            assert!(state(b"123 (test) Z 1 456", 123, Some(457)).is_err());
+            assert!(state(b"123 (test) Z", 123, None).is_err());
+        }
+
+        #[test]
+        fn hidden_or_missing_proc_views_are_not_complete_observations() {
+            assert!(unrestricted("proc /proc proc rw,hidepid=0 0 0\n"));
+            assert!(unrestricted("proc /proc proc rw,hidepid=off 0 0\n"));
+            assert!(!unrestricted("proc /proc proc rw,hidepid=2 0 0\n"));
+            assert!(!unrestricted("proc /proc proc rw,hidepid=ptraceable 0 0\n"));
+            assert!(!unrestricted("tmpfs /proc tmpfs rw 0 0\n"));
+            assert!(!unrestricted(""));
+        }
+
+        #[test]
+        fn zombie_leader_does_not_hide_a_live_thread_or_unreadable_state() {
+            let root = tempfile::tempdir().unwrap();
+            for (tid, status) in [(123, "Z"), (124, "S")] {
+                let path = root.path().join(format!("task/{tid}"));
+                fs::create_dir_all(&path).unwrap();
+                fs::write(path.join("stat"), format!("{tid} (fixture) {status} 1 456")).unwrap();
+            }
+            let deadline = Instant::now() + Duration::from_secs(1);
+            assert!(!tasks_dead(root.path(), 456, deadline).unwrap());
+            fs::write(root.path().join("task/124/stat"), "124 (fixture) Z 1 456").unwrap();
+            assert!(tasks_dead(root.path(), 456, deadline).unwrap());
+            fs::write(root.path().join("task/124/stat"), "unreadable record").unwrap();
+            assert!(tasks_dead(root.path(), 456, deadline).is_err());
+        }
+
+        #[test]
+        fn permission_and_other_probe_errors_do_not_mean_absent() {
+            assert!(!super::super::group_probe(Err(nix::errno::Errno::ESRCH)).unwrap());
+            assert!(super::super::group_probe(Err(nix::errno::Errno::EPERM)).is_err());
+            assert!(super::super::group_probe(Err(nix::errno::Errno::EINVAL)).is_err());
         }
     }
 }
@@ -203,6 +492,10 @@ fn signal_group(pid: u32, signal: nix::sys::signal::Signal) {
 /// Unix execution uses a new process group and stops that group on interruption,
 /// deadline, capture failure or lingering descendants. Non-Unix execution is
 /// explicitly unsupported rather than claiming unimplemented child cleanup.
+/// Linux excludes zombie/dead group members only after bounded, unrestricted
+/// proc observations, including their threads. Unknown or unreadable membership
+/// remains a failure. Other Unix systems conservatively reject any surviving
+/// process group, including unreaped zombies. No subreaper state is changed.
 pub fn run_command(
     invocation: &Invocation,
     root: &Path,
@@ -247,8 +540,7 @@ pub(crate) fn run_command_with_env(
     }
     #[cfg(unix)]
     {
-        use nix::sys::signal::{Signal, killpg};
-        use nix::unistd::Pid;
+        use nix::sys::signal::Signal;
         use std::os::unix::process::{CommandExt, ExitStatusExt};
         invocation.validate().map_err(|_| {
             io::Error::new(io::ErrorKind::InvalidInput, "invalid invocation contract")
@@ -360,12 +652,22 @@ pub(crate) fn run_command_with_env(
         };
         if result.termination == Termination::Completed {
             // A completed parent must not strand background writers or spenders.
-            let group_alive =
-                i32::try_from(pid).is_ok_and(|p| p > 1 && killpg(Pid::from_raw(p), None).is_ok());
-            if group_alive {
-                result.termination = Termination::CaptureFailed;
-                result.error = Some("process left unfinished descendants".into());
-            } else {
+            match group_running(pid, start + Duration::from_millis(invocation.timeout_ms)) {
+                Ok(true) => {
+                    result.termination = Termination::CaptureFailed;
+                    result.error = Some("process left unfinished descendants".into());
+                }
+                Err(error) => {
+                    result.termination = if error.kind() == io::ErrorKind::TimedOut {
+                        Termination::TimedOut
+                    } else {
+                        Termination::CaptureFailed
+                    };
+                    result.error = Some("could not establish process group completion".into());
+                }
+                Ok(false) => (),
+            }
+            if result.termination == Termination::Completed {
                 // A slow filesystem flush is not evidence of a live descendant.
                 while !stdout.is_finished() || !stderr.is_finished() {
                     if cancelled.load(Ordering::SeqCst) {

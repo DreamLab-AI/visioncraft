@@ -10,7 +10,8 @@ fn main() -> ExitCode {
         Err(error) => {
             let failed = error.use_stderr();
             let _ = error.print();
-            let legacy = std::env::args().nth(1).as_deref() == Some("deepsec");
+            let legacy =
+                std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("deepsec"));
             return ExitCode::from(if !failed {
                 0
             } else if legacy {

@@ -28,7 +28,7 @@ It is not proof of correctness, security, complete test coverage or deployment.
 
 ## Install
 
-Rust 1.85 or later is required. The process CLI currently supports Unix.
+Rust 1.88 or later is required. The process CLI currently supports Unix.
 
 ```sh
 cargo install visioncraft --locked --version 0.1.0
@@ -77,6 +77,24 @@ Change `limit.txt` after running the check and repeat `evaluate`: the old
 receipt cannot satisfy the new input. Create a new plan and fresh run directory
 after intentionally changing a check's scope or configuration. Existing output
 paths are refused to avoid overwriting evidence.
+
+Repository and configuration labels are caller declarations. Without
+`--current-subject`, evaluation reports their freshness as
+`plan-declared-unverified`; the CLI observes the selected source snapshot, but
+does not discover repository identity or configuration from the environment.
+To attest current labels, supply a current `Subject` JSON record:
+
+```sh
+visioncraft evaluate quality.json --receipts evidence-1 \
+  --current-subject current-subject.json --json
+```
+
+The CLI checks that record's source fields against disk and treats its
+repository/configuration fields as `caller-attested`. Different labels make the
+old evidence stale; matching labels remain attestations. A configuration digest
+in a label is not automatically verified against a file. Include the actual
+configuration artifact in `--input` to check its bytes; changed selected
+configuration invalidates the evidence even if the label stays unchanged.
 
 For a real project, include relevant source, lockfiles and configuration in
 `--input`; pass required environment **names** with repeated `--env` options.
@@ -213,10 +231,15 @@ process groups support cancellation and deadlines, but a deliberately escaping
 process or a blocked kernel filesystem call needs host-level containment.
 Private capture directories protect ordinary local handling, not a hostile
 concurrent filesystem. Keep source-bearing evidence out of public commits.
+Linux can recognise exited zombie group members through an unrestricted `/proc`
+view; hidden, unreadable or uncertain state remains non-passing. Other Unix
+platforms conservatively reject any surviving group, including zombies.
 
 Run `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`
 and `RUSTDOCFLAGS='-D warnings' cargo doc --no-deps`. The
 [implementation contract](docs/EXPECTATIONS.md) records acceptance boundaries.
+The [release review](docs/REVIEW-2026-11-03.md) records reproduced counterexamples
+and their dispositions.
 [Zeroshot lessons](docs/ZEROSHOT-LESSONS.md) document source-grounded design
 patterns adopted without importing another execution engine. Structural skill
 checks and forward evaluations are reported separately from

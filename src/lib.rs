@@ -127,3 +127,6 @@ pub mod deepsec;
 /// Explicit command-line and filesystem adapter for the quality core.
 #[cfg(feature = "cli")]
 pub mod cli;
+
+#[cfg(feature = "cli")]
+mod git_metadata;

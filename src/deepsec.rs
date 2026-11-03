@@ -1,10 +1,10 @@
 //! Executed Deepsec 2.3.10 gates with explicit policy and retained error states.
 //!
 //! This adapter knows no Agentbox manifest, memory service or network address.
-//! Hosts project their policy into [`DeepsecPolicy`]. Credentials remain named
+//! Hosts project their policy into [`crate::deepsec::DeepsecPolicy`]. Credentials remain named
 //! environment variables and are passed only to the model-processing child.
 
-use crate::process::{Termination, private_directory, private_file, run_command};
+use crate::process::{Termination, private_directory, private_file, run_command_with_env};
 use crate::{Invocation, from_json, sha256};
 use clap::{ArgGroup, Args};
 use serde::{Deserialize, Serialize};
@@ -498,11 +498,22 @@ impl Attempt<'_> {
         let directory = self.report.join(format!("{:02}-{stage}", self.sequence));
         self.sequence += 1;
         private_directory(&directory).map_err(io_error)?;
+        let (args, env, fixed) = if program == "git" {
+            let mut hardened = crate::git_metadata::prefix();
+            hardened.extend(args);
+            (
+                hardened,
+                vec!["PATH".into()],
+                crate::git_metadata::fixed_environment(),
+            )
+        } else {
+            (args, environment(self.policy, model), BTreeMap::new())
+        };
         let invocation = Invocation {
             program: program.into(),
             args,
             cwd: ".".into(),
-            env: environment(self.policy, model),
+            env,
             timeout_ms: remaining.as_millis().max(1).try_into().unwrap_or(u64::MAX),
             max_output_bytes: self.policy.max_output_bytes,
         };
@@ -511,8 +522,8 @@ impl Attempt<'_> {
             &serde_json::to_vec_pretty(&invocation)
                 .map_err(|_| error(70, "invocation serialisation failed"))?,
         )?;
-        let run =
-            run_command(&invocation, cwd, &directory, self.cancelled, stdin).map_err(io_error)?;
+        let run = run_command_with_env(&invocation, cwd, &directory, self.cancelled, stdin, &fixed)
+            .map_err(io_error)?;
         let stdout = read_bounded(&run.stdout, self.policy.max_output_bytes)?;
         let stderr = read_bounded(&run.stderr, self.policy.max_output_bytes)?;
         let mut log = OpenOptions::new()
@@ -566,6 +577,42 @@ fn workspace_lock(workspace: &Path) -> Result<nix::fcntl::Flock<File>, GateError
         .map_err(io_error)?;
     Flock::lock(file, FlockArg::LockExclusiveNonblock)
         .map_err(|_| error(78, "another review owns this workspace"))
+}
+
+#[cfg(unix)]
+fn validate_workspace_tree(workspace: &Path) -> Result<(), GateError> {
+    use std::os::unix::fs::MetadataExt;
+    // Deepsec owns durable checkpoint state here. Reject redirected/special
+    // entries before passing that tree to an external tool with credentials.
+    // This does not isolate concurrent writers running as the same Unix user.
+    let mut pending = vec![(workspace.to_owned(), 0_usize)];
+    let mut count = 0_usize;
+    while let Some((directory, depth)) = pending.pop() {
+        if depth > 64 {
+            return Err(error(78, "review workspace exceeds traversal bounds"));
+        }
+        for entry in fs::read_dir(directory).map_err(io_error)? {
+            count += 1;
+            if count > 100_000 {
+                return Err(error(78, "review workspace exceeds traversal bounds"));
+            }
+            let entry = entry.map_err(io_error)?;
+            let meta = fs::symlink_metadata(entry.path()).map_err(io_error)?;
+            if meta.file_type().is_symlink()
+                || !(meta.is_dir() || meta.is_file())
+                || (meta.is_file() && meta.nlink() != 1)
+            {
+                return Err(error(
+                    78,
+                    "review workspace contains redirected or special entries",
+                ));
+            }
+            if meta.is_dir() {
+                pending.push((entry.path(), depth + 1));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Execute an explicitly requested security gate, returning its legacy exit code.
@@ -717,6 +764,7 @@ pub fn execute(options: &DeepsecOptions, cancelled: &AtomicBool) -> Result<i32, 
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&workspace, fs::Permissions::from_mode(0o700)).map_err(io_error)?;
         let _lock = workspace_lock(&workspace)?;
+        validate_workspace_tree(&workspace)?;
         if fs::symlink_metadata(&report).is_ok() {
             return Err(error(78, "report directory must be new"));
         }
@@ -727,9 +775,11 @@ pub fn execute(options: &DeepsecOptions, cancelled: &AtomicBool) -> Result<i32, 
             &serde_json::to_vec_pretty(&plan)
                 .map_err(|_| error(70, "plan serialisation failed"))?,
         )?;
-        if !workspace.join(".gitignore").exists() {
-            write_new(&workspace.join(".gitignore"), b"*\n")?;
-        }
+        let mut ignore = tempfile::NamedTempFile::new_in(&workspace).map_err(io_error)?;
+        ignore.write_all(b"*\n").map_err(io_error)?;
+        ignore
+            .persist(workspace.join(".gitignore"))
+            .map_err(|_| error(70, "cannot finalise review ignore file"))?;
         let config = workspace.join("deepsec.config.mjs");
         if fs::symlink_metadata(&config).is_ok_and(|m| !m.is_file() || m.file_type().is_symlink()) {
             return Err(error(78, "configuration path is not an ordinary file"));

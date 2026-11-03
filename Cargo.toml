@@ -2,7 +2,7 @@
 name = "visioncraft"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Explicit quality plans, bounded execution receipts and deterministic evidence gates"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/DreamLab-AI/visioncraft"

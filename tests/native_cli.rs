@@ -90,6 +90,158 @@ fn evaluate(root: &Path) -> Output {
 }
 
 #[test]
+fn invalid_non_unicode_argv_uses_usage_exit_codes_without_panicking() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+    let malformed = OsString::from_vec(vec![0xff]);
+    for legacy in [false, true] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_visioncraft"));
+        if legacy {
+            command.arg("deepsec");
+        }
+        let output = command.arg(&malformed).output().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(if legacy { 78 } else { 2 }),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("panicked"));
+    }
+}
+
+#[test]
+fn current_labels_are_explicit_attestations_and_can_make_receipts_stale() {
+    let root = fixture();
+    init(root.path(), "printf ok");
+    success(&run(root.path()));
+    let plan = QualityPlan::parse(&fs::read(root.path().join("plan.json")).unwrap()).unwrap();
+    let report: serde_json::Value = serde_json::from_slice(&evaluate(root.path()).stdout).unwrap();
+    assert_eq!(
+        report["freshness"]["configuration"],
+        "plan-declared-unverified"
+    );
+    assert_eq!(
+        report["freshness"]["repository"],
+        "plan-declared-unverified"
+    );
+    let args = [
+        "evaluate",
+        "plan.json",
+        "--receipts",
+        "evidence",
+        "--current-subject",
+        "current.json",
+        "--json",
+    ];
+    for field in ["configuration", "repository"] {
+        let mut supplied = serde_json::to_value(&plan.subject).unwrap();
+        supplied[field] = serde_json::json!("a different caller-attested context");
+        fs::write(
+            root.path().join("current.json"),
+            serde_json::to_vec(&supplied).unwrap(),
+        )
+        .unwrap();
+        let output = cli(root.path(), &args);
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["outcome"], "incomplete");
+        assert_eq!(report["freshness"][field], "caller-attested");
+        assert!(
+            report
+                .to_string()
+                .contains("current repository/configuration differs")
+        );
+    }
+    fs::write(
+        root.path().join("current.json"),
+        serde_json::to_vec(&plan.subject).unwrap(),
+    )
+    .unwrap();
+    let same = cli(root.path(), &args);
+    success(&same);
+    let report: serde_json::Value = serde_json::from_slice(&same.stdout).unwrap();
+    assert_eq!(report["freshness"]["source_snapshot"], "observed");
+    assert_eq!(report["freshness"]["configuration"], "caller-attested");
+    let mut forged = plan.subject;
+    forged.inputs[0].sha256 = "0".repeat(64);
+    fs::write(
+        root.path().join("current.json"),
+        serde_json::to_vec(&forged).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(cli(root.path(), &args).status.code(), Some(2));
+}
+
+#[test]
+fn configuration_artifact_bytes_are_checked_only_when_selected_as_inputs() {
+    let root = fixture();
+    fs::write(
+        root.path().join("configuration.json"),
+        "{\"enabled\":true}\n",
+    )
+    .unwrap();
+    git(root.path(), &["add", "configuration.json"]);
+    git(
+        root.path(),
+        &[
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            "configuration",
+        ],
+    );
+    let digest = visioncraft::sha256(&fs::read(root.path().join("configuration.json")).unwrap());
+    success(&cli(
+        root.path(),
+        &[
+            "plan",
+            "init",
+            "--out",
+            "plan.json",
+            "--input",
+            "source.txt",
+            "--input",
+            "configuration.json",
+            "--configuration",
+            &digest,
+            "--",
+            "/bin/sh",
+            "-c",
+            "exit 0",
+        ],
+    ));
+    success(&run(root.path()));
+    success(&evaluate(root.path()));
+    fs::write(
+        root.path().join("configuration.json"),
+        "{\"enabled\":false}\n",
+    )
+    .unwrap();
+    let changed = evaluate(root.path());
+    assert_eq!(changed.status.code(), Some(1));
+    let report: serde_json::Value = serde_json::from_slice(&changed.stdout).unwrap();
+    assert_eq!(report["outcome"], "incomplete");
+    assert_eq!(
+        report["freshness"]["configuration"],
+        "plan-declared-unverified"
+    );
+    assert!(
+        report
+            .to_string()
+            .contains("selected source inputs changed")
+    );
+}
+
+#[test]
 fn plan_run_and_evaluate_use_real_output_but_do_not_invent_scope_or_tests() {
     use std::os::unix::fs::PermissionsExt;
     let root = fixture();

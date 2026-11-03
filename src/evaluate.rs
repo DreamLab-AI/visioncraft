@@ -220,10 +220,10 @@ fn check_receipt(
     if output_bytes > check.invocation.max_output_bytes {
         return error("verified raw output exceeds configured capture limit");
     }
-    if let Some(snapshot) = &receipt.subject.working_tree {
-        if !context.verified.contains(snapshot) {
-            return error("dirty working-tree snapshot has not been byte-verified");
-        }
+    if let Some(snapshot) = &receipt.subject.working_tree
+        && !context.verified.contains(snapshot)
+    {
+        return error("dirty working-tree snapshot has not been byte-verified");
     }
     match &receipt.observed_scope {
         Some(paths) if !check.scope.iter().all(|p| paths.contains(p)) => {
@@ -560,15 +560,14 @@ pub fn evaluate(
         if let Err(error) = receipt.validate() {
             report.errors.push(error.to_string());
         }
-        if let Some(check) = plan.checks.iter().find(|c| c.id == receipt.check_id) {
-            if receipt.plan_sha256 != digest
+        if let Some(check) = plan.checks.iter().find(|c| c.id == receipt.check_id)
+            && (receipt.plan_sha256 != digest
                 || receipt.subject != plan.subject
-                || receipt.invocation != check.invocation
-            {
-                report
-                    .errors
-                    .push("receipt does not bind to its declared plan/subject/invocation".into());
-            }
+                || receipt.invocation != check.invocation)
+        {
+            report
+                .errors
+                .push("receipt does not bind to its declared plan/subject/invocation".into());
         }
         if !ids.contains(receipt.check_id.as_str()) {
             report

@@ -110,6 +110,48 @@ fn actual_review_and_threshold_have_positive_controls() {
         );
     }
 }
+
+#[test]
+fn metadata_does_not_execute_repository_fsmonitor() {
+    let f = Fixture::new("pass");
+    let marker = f.root.join("unexpected-hook");
+    assert!(
+        Command::new("git")
+            .args(["config", "core.fsmonitor", "touch unexpected-hook"])
+            .current_dir(&f.root)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let output = f.gate();
+    assert_eq!(output.status.code(), Some(0));
+    assert!(
+        !marker.exists(),
+        "metadata inspection executed repository config"
+    );
+}
+
+#[test]
+fn review_state_refuses_nested_symlinks_before_external_tools() {
+    use std::os::unix::fs::symlink;
+    for nested in ["data", "data/repo/files", ".gitignore"] {
+        let f = Fixture::new("pass");
+        let state = f.root.join(".deepsec-gate");
+        let path = state.join(nested);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let outside = f._temp.path().join("outside");
+        fs::create_dir(&outside).unwrap();
+        symlink(&outside, path).unwrap();
+        let output = f.gate();
+        assert_eq!(
+            output.status.code(),
+            Some(78),
+            "{nested}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(fs::read_dir(outside).unwrap().count(), 0);
+    }
+}
 #[test]
 fn no_empty_partial_or_ambiguous_review_can_pass() {
     for case in [
