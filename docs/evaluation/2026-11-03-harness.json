@@ -1,0 +1,12 @@
+{
+  "sha256": {
+    "test_harness.py": "6f697e2e32c01061caa90a46e8682e8f0cf581c96551e954fb0844bc119d29f6",
+    "adapter.py": "378183b4ba1030a7997e2eabdf827c79f8d2bbf8857a2ac1b14460f5156ccb9d",
+    "rollout.py": "908fcb14be1613d2e21a223dc0ae29ec62f5101d3738106581ec81ade4ef1329",
+    "__init__.py": "66c8591d32c0274329c9680f072eb128dd4720198e7012d44878947480b283c4",
+    "run_eval.py": "74e67e9b51f0c39962c94cf5a1c27c5f25120916119f7ab1d1079fbc08bbc0d1",
+    "dataloader.py": "dc1434f8e865c47888dfc0ffc2318b17eb5739ed3d4a5d46474e075cb83aa2a4"
+  },
+  "cli_version": "2.1.309",
+  "scope": "All Python evaluation source files as executed; model prompts exclude accepted arrays and rationales."
+}

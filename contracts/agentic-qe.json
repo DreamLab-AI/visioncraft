@@ -1,0 +1,304 @@
+{
+  "schema_version": 1,
+  "protocol_version": "agentic-qe-mcp-3.15.10-v1",
+  "supported_versions": [
+    "3.15.10"
+  ],
+  "boundary": "Optional direct upstream MCP tools; no VisionCraft AQE executor and no forked agents. These JSON Schemas type a consumed result subset; they do not judge semantic truth or grant a policy pass.",
+  "package": {
+    "name": "agentic-qe",
+    "version": "3.15.10",
+    "repository": "https://github.com/proffesor-for-testing/agentic-qe",
+    "tarball_url": "https://registry.npmjs.org/agentic-qe/-/agentic-qe-3.15.10.tgz",
+    "integrity": "sha512-FNnyME/VHonPlRDB7Pu6Y62G0hizqAete466TgGU4UsFpfWfwPNr5seJW8x0HriaG9TZFPB5x6fRsoTyfCsANg==",
+    "shasum": "1509b5b961a6186887a83c6112592af1cbfc740a",
+    "licence": "MIT",
+    "npm_git_head": null,
+    "registry_provenance_git_commit": "e5814a2f4f3d7995b87ebda9ad30e8a3d92cd555",
+    "registry_provenance_url": "https://registry.npmjs.org/-/npm/v1/attestations/agentic-qe@3.15.10",
+    "source_identity_limit": "Registry SLSA statement decoded and tarball subject digest matched; attestation signature not independently verified in this check."
+  },
+  "tools": {
+    "test_generate_enhanced": {
+      "input_fields": [
+        "sourceCode",
+        "filePath",
+        "language",
+        "testType",
+        "framework",
+        "coverageGoal",
+        "behaviorExamples",
+        "aiEnhancement",
+        "detectAntiPatterns",
+        "saveResults"
+      ],
+      "required_input_fields": [],
+      "result_data_schema": "test_generation_data",
+      "meaning": "Candidate source; actual test execution remains required."
+    },
+    "coverage_analyze_sublinear": {
+      "input_fields": [
+        "target",
+        "detectGaps",
+        "saveResults"
+      ],
+      "required_input_fields": [
+        "target"
+      ],
+      "result_data_schema": "coverage_data",
+      "meaning": "Measured, estimated and unmeasured are distinct; native report/source evidence required."
+    },
+    "quality_assess": {
+      "input_fields": [
+        "runGate",
+        "metrics",
+        "target",
+        "sourceFiles",
+        "saveResults"
+      ],
+      "required_input_fields": [],
+      "result_data_schema": "quality_data",
+      "meaning": "Analysis is not gate execution; insufficient evidence cannot pass."
+    }
+  },
+  "output_schemas": {
+    "test_generation_data": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": [
+        "status",
+        "tests",
+        "llmEnhanced"
+      ],
+      "properties": {
+        "status": {
+          "const": "completed"
+        },
+        "tests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "testCode": {
+                "type": "string"
+              },
+              "generationMode": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "llmEnhanced": {
+          "type": "boolean"
+        },
+        "generationMode": {
+          "type": "string"
+        },
+        "coverageEstimate": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "coverage_data": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": [
+        "status",
+        "measured",
+        "estimated",
+        "coverageMethod",
+        "lineCoverage",
+        "branchCoverage",
+        "functionCoverage",
+        "branchDataCollected",
+        "functionDataCollected"
+      ],
+      "properties": {
+        "status": {
+          "const": "completed"
+        },
+        "measured": {
+          "type": "boolean"
+        },
+        "estimated": {
+          "type": "boolean"
+        },
+        "coverageMethod": {
+          "type": "string"
+        },
+        "lineCoverage": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "branchCoverage": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "functionCoverage": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "branchDataCollected": {
+          "type": "boolean"
+        },
+        "functionDataCollected": {
+          "type": "boolean"
+        },
+        "unmeasured": {
+          "type": "boolean"
+        },
+        "runStatus": {
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "quality_data": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": [
+        "passed",
+        "gateEvaluated"
+      ],
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "gateEvaluated": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string"
+        },
+        "evidenceStatus": {
+          "type": "string"
+        },
+        "unmeasured": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "measuredFailures": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "raw_response_policy": {
+    "retain_complete_mcp_envelope": true,
+    "retain_handler_envelope": true,
+    "reject_for_pass": [
+      "isError true",
+      "success false",
+      "non-JSON or truncated text",
+      "unknown result shape",
+      "missing required capability",
+      "insufficient-evidence",
+      "stale or mismatched source/report"
+    ],
+    "missing_fields": "Unknown/incomplete; never fill with successful defaults. A loop-steering text prefix or compacted response needs retained original evidence, not heuristic green parsing."
+  },
+  "evidence_fields": [
+    "tool_server_identity",
+    "tool_name",
+    "tool_schema_digest",
+    "aqe_version",
+    "aqe_package_integrity",
+    "protocol_version",
+    "request",
+    "raw_response_path",
+    "raw_response_sha256",
+    "source_revision",
+    "source_dirty_inputs",
+    "started_at",
+    "completed_at",
+    "native_test_command",
+    "native_test_output_sha256"
+  ],
+  "memory": {
+    "supported_env": {
+      "AQE_MEMORY_BACKEND": "memory",
+      "AQE_WORKERS_ENABLED": "false"
+    },
+    "memory_mode_disables_embedding_attempts": false,
+    "embedding_endpoint": "OpenAI-style POST /v1/embeddings; bearer token via AQE_EMBEDDER_TOKEN",
+    "default_model": "Xenova/all-MiniLM-L6-v2",
+    "dimensions": 384,
+    "durable_owner": "Host-approved memory API; no raw SQL or automatic second service."
+  },
+  "verification": {
+    "tarball_integrity_verified": true,
+    "real_mcp_task_executed_by_this_inspection": false,
+    "sources": [
+      {
+        "path": "dist/mcp/protocol-server.js",
+        "sha256": "04efa14b0204e5a1d6e8d3cf028beb63d7613a3a8be3d627b01bf84fb264b61c"
+      },
+      {
+        "path": "dist/mcp/handlers/domain-handler-configs.js",
+        "sha256": "973683d0f2ea703e1c52f5d13ba02c126ca403f7652ee2a98495b8b9f765b706"
+      },
+      {
+        "path": "dist/mcp/handlers/handler-factory.js",
+        "sha256": "e2fcbbed10e0e0582c24799f7ac1d49825ffe42d176868fa73962dad810771fa"
+      },
+      {
+        "path": "dist/mcp/entry.js",
+        "sha256": "45c03af0a535e3302bced5e1e899f45ec5ca595c9bf1e8b106c80991c611bafd"
+      },
+      {
+        "path": "dist/mcp/tools/base.js",
+        "sha256": "5ac126dffba550518918638841d4cc9bd57b9194407374d794708119605e3895"
+      },
+      {
+        "path": "dist/mcp/services/session-store.js",
+        "sha256": "523d4fc8fdbf29941f567597a5298d40aad622f67aed43151600620b6b5298ef"
+      },
+      {
+        "path": "dist/kernel/unified-memory.js",
+        "sha256": "9a215da71f71bda34c5241152fbc79fd4beeb29177e2c8fca792f0b756357051"
+      },
+      {
+        "path": "dist/learning/experience-capture-middleware.js",
+        "sha256": "49d9feb583ead83e1d98056556806903a03dee38faaed1a88d3736f67661538a"
+      },
+      {
+        "path": "dist/learning/real-embeddings.js",
+        "sha256": "9e34d325924f05256416340ddecb05e153a568291d9e349a33b52a793c4f5654"
+      },
+      {
+        "path": "dist/learning/embedder-endpoint-client.js",
+        "sha256": "73bbd7036caaa7421cebb67d397f2f3d026dc452f7c5999685056db067216c55"
+      },
+      {
+        "path": "dist/cli/commands/quality.js",
+        "sha256": "2bb07043fa6c49a1638bbbdeddc34da0c17e6262cde9b447232c4474d2a3f7c6"
+      }
+    ]
+  }
+}

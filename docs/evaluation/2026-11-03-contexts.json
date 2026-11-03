@@ -1,0 +1,85 @@
+{
+  "dataset_sha256": "2da88232856635de992c68417061acca664359508ba6a27df53a965809181340",
+  "arms": {
+    "baseline": {
+      "revision": "a9125eaf006e2679f5b81444c3c06d0fb45b7481",
+      "files": [
+        {
+          "path": "skills/build-with-quality/SKILL.md",
+          "sha256": "4bfc807b6c5e518b5dc2847186f0503fb001c7061cf6a60851bbb4916afe6a53",
+          "bytes": 11174
+        },
+        {
+          "path": "skills/build-with-quality/EDD-PROTOCOL.md",
+          "sha256": "f403ca0cfbe4ec40962b3912050850a8ccd7daa9bb008f311501ab6ea17dd318",
+          "bytes": 19127
+        },
+        {
+          "path": "skills/build-with-quality/DEBUGGING-PROTOCOL.md",
+          "sha256": "e6f4997dd2c895d25e5754e3743f9ae8f88ae57a32289364b8f4602028fb5c7d",
+          "bytes": 10382
+        },
+        {
+          "path": "skills/build-with-quality/references/methodologies.md",
+          "sha256": "f06d08cd4e69d40739403a705287333f28800f126009bdff7334f72ebb2479d0",
+          "bytes": 5611
+        },
+        {
+          "path": "skills/build-with-quality/references/review-evidence.md",
+          "sha256": "d88fa12e3a91df6dba9975c6753e1594ddaf0a95e8f124163efbb6a3909c136d",
+          "bytes": 12830
+        },
+        {
+          "path": "skills/build-with-quality/references/quality-gates-and-workflow.md",
+          "sha256": "6f875f71a4bd62259c0c9608ef20b6ff1eb87931f9d016559dd90b05f7ec55ec",
+          "bytes": 8544
+        }
+      ],
+      "context_sha256": "b54f6cc1a4b502a5165d0a2606062ecca4fccdf14dc3fc3ea10b548df17792e3",
+      "context_bytes": 68048,
+      "context_chars": 67106,
+      "context_words": 9283,
+      "selection": "Six predeclared equivalent method resources; no task-specific selection or truncation."
+    },
+    "candidate": {
+      "revision": "899e76600119a5159869551b374600d4cfb4a83e",
+      "files": [
+        {
+          "path": "skills/visioncraft/SKILL.md",
+          "sha256": "d081596856e07cfb0a8648c72807b839c75c4f35d8e7609b2f33af1aa827d426",
+          "bytes": 7156
+        },
+        {
+          "path": "skills/visioncraft/references/edd.md",
+          "sha256": "8585bed068204c385bade50b7bad9f39223a2b251760b6b9963dbba18d2992d7",
+          "bytes": 6616
+        },
+        {
+          "path": "skills/visioncraft/references/debugging.md",
+          "sha256": "ded614cf5a17e2ac3760cb8be93330ca370ccab06b6050c926370e3c627d1c94",
+          "bytes": 4702
+        },
+        {
+          "path": "skills/visioncraft/references/methodologies.md",
+          "sha256": "f537dac226f64a769622f7da13ed008d84e49d0988367cda6263eed15c34cc69",
+          "bytes": 3856
+        },
+        {
+          "path": "skills/visioncraft/references/review-evidence.md",
+          "sha256": "a3f5506c3cac1a0b75310a187955438b4cec9ae82794fc083bc7094616ee165b",
+          "bytes": 9047
+        },
+        {
+          "path": "skills/visioncraft/references/quality-gates.md",
+          "sha256": "44a63031a3848443efd8f0d9cad802187f6a424dcaefd9650e2c791023adba9c",
+          "bytes": 5443
+        }
+      ],
+      "context_sha256": "043c48d4de9ebbc2beec7eb66ec8ad7b1baebba8806da027fc86aa82a77263ad",
+      "context_bytes": 37149,
+      "context_chars": 37129,
+      "context_words": 5119,
+      "selection": "Six predeclared equivalent method resources; no task-specific selection or truncation."
+    }
+  }
+}

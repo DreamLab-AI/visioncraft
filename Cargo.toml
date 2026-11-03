@@ -1,0 +1,45 @@
+[package]
+name = "visioncraft"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Explicit quality plans, bounded execution receipts and deterministic evidence gates"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/DreamLab-AI/visioncraft"
+readme = "README.md"
+keywords = ["quality", "evidence", "testing", "development"]
+categories = ["development-tools::testing"]
+
+[features]
+default = ["cli", "process"]
+cli = ["process", "dep:clap", "dep:url"]
+process = ["dep:tempfile", "dep:nix", "dep:signal-hook"]
+
+[[bin]]
+name = "visioncraft"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+sha2 = "0.10"
+sealmap-corpus = "0.4.0"
+clap = { version = "4", features = ["derive"], optional = true }
+tempfile = { version = "3.27", optional = true }
+url = { version = "2.5", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31.3", features = ["process", "signal", "fs"], optional = true }
+signal-hook = { version = "0.3", optional = true }
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_code = "forbid"
+
+[profile.dev]
+debug = 0
+
+[profile.test]
+debug = 0
