@@ -7,7 +7,7 @@ results support, and carry that evidence through review and release. Use its
 [skill](skills/visioncraft/SKILL.md), Rust library, CLI, or a combination.
 
 It works without Agentbox, an orchestration framework or a model subscription.
-The library does not launch processes or make network calls. The optional CLI
+The deterministic core does not launch processes or make network calls. The optional CLI
 runs explicitly requested commands; optional upstream tools provide their own
 specialist capabilities.
 
@@ -161,6 +161,7 @@ verify its source claims; a clean relationship graph does not make an ADR curren
 [diagram diagnosis](skills/visioncraft/references/diagram-diagnosis.md) and
 [traceability](skills/visioncraft/references/traceability.md) explain how to keep
 these records useful without building a second documentation database.
+This project dogfoods that workflow in its [verified ADRs and diagrams](docs/diagrams/README.md).
 
 ## Rust library
 
