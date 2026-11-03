@@ -3,8 +3,8 @@ sealmap: 2
 source: src/lib.rs
 module: "sym:cargo visioncraft ."
 language: rust
-source_hash: blake3:337326f4db730b3c5a5b0457e94f425a596bc8dd6d765e3e51bc9d78bc56b9ad
-lines: 129
+source_hash: blake3:bd0cbb39c4723d919330852c9a157a2284d5b8102817d2c74eb7dd89a715bffb
+lines: 132
 fragments: 1
 ---
 # `sym:cargo visioncraft .` · src/lib.rs
@@ -28,6 +28,7 @@ classDiagram
     +mod evaluate
     +mod evidence
     +from_json(bytes: &[u8]) Result#lt;T, ContractError#gt;
+    +mod git_metadata
     ~hex(crate) bool
     ~identifier(crate) bool
     ~nonempty(crate) bool

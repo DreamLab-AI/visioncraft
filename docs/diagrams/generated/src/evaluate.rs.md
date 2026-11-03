@@ -3,8 +3,8 @@ sealmap: 2
 source: src/evaluate.rs
 module: "sym:cargo visioncraft . evaluate/"
 language: rust
-source_hash: blake3:e2b3c4721974ba40222309382bfb4dc2a311296e18b7324982cd29215db905a1
-lines: 658
+source_hash: blake3:68c30067ced8712ddcf6cb6c32ff742f62c952f39d3d4fa57951fe599b7da94c
+lines: 657
 fragments: 4
 ---
 # `sym:cargo visioncraft . evaluate/` · src/evaluate.rs
@@ -149,10 +149,8 @@ sequenceDiagram
   opt output_bytes> check.invocation.max_output_bytes
     Note over visioncraft__evaluate: return error(#quot;verified raw output exceeds configured ca…
   end
-  opt let Some(snapshot) = &receipt.subject.working_tree
-    opt !context.verified.contains(snapshot)
-      Note over visioncraft__evaluate: return error(#quot;dirty working-tree snapshot has not been …
-    end
+  opt let Some(snapshot) = &receipt.subject.working_tree &…
+    Note over visioncraft__evaluate: return error(#quot;dirty working-tree snapshot has not been …
   end
   alt Some(paths) if !check.scope.iter().all(| p | paths.cont…
     Note over visioncraft__evaluate: return (CheckOutcome::Inconclusive, vec![#quot;observed scop…

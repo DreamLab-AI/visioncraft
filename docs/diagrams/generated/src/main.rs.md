@@ -3,8 +3,8 @@ sealmap: 2
 source: src/main.rs
 module: "sym:cargo visioncraft_main ."
 language: rust
-source_hash: blake3:99d2860c356b50b40860a89032581ec5c2ae5c16e89fca73d9a59be073f78872
-lines: 38
+source_hash: blake3:4bb59bf863aec89c7e0f6ea0dc232c477e58b0d54775b003a29d43b892e22326
+lines: 39
 fragments: 1
 ---
 # `sym:cargo visioncraft_main .` · src/main.rs

@@ -3,13 +3,14 @@ id: ADR-0001
 title: Portable quality contracts with explicit execution adapters
 status: accepted
 date: 2026-11-03
-verified_commit: 6f233886824ef3896cbd8c18fd35fc3b9fbc2bb6
+verified_commit: 2c5a625ce245be2a5ec2f0b30633d708b50afb9e
 verified_paths:
   - src/plan.rs
   - src/evidence.rs
   - src/evaluate.rs
   - src/cli.rs
   - src/process.rs
+  - src/git_metadata.rs
   - Cargo.toml
 ---
 
@@ -29,6 +30,11 @@ injected evaluation context. It performs no filesystem or network operations.
 Plans bind code/configuration and literal invocations; aggregate admission bounds
 are checked before execution. Required missing, incomplete or contradicted evidence
 cannot become a pass by omission. Observed coverage is distinct from intended scope.
+
+The native CLI observes source snapshots directly. Repository and configuration
+identifiers are caller declarations, explicitly labelled as unverified when no
+current-subject attestation is supplied. Include configuration files in the
+selected inputs when their exact bytes must be checked automatically.
 
 Optional Unix process/CLI adapters execute explicit commands with private captures,
 deadlines and process-group cancellation. Read-only evaluation never executes an

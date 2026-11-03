@@ -3,8 +3,8 @@ sealmap: 2
 source: src/cli.rs
 module: "sym:cargo visioncraft . cli/"
 language: rust
-source_hash: blake3:e883c6b79fba490bdf06476058ca4078ae6ce7a147e4308b65afd6c1326bdb7d
-lines: 1130
+source_hash: blake3:e5a287dcb11e681724fa694daeace991975ed75a6cc4cf342d3328a778ce0c6d
+lines: 1135
 fragments: 17
 ---
 # `sym:cargo visioncraft . cli/` · src/cli.rs
@@ -36,7 +36,7 @@ classDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/confined().`
-`fn confined(root: &Path, relative: &str, directory: bool) -> Result<PathBuf, CliError>` · L218-L244
+`fn confined(root: &Path, relative: &str, directory: bool) -> Result<PathBuf, CliError>` · L225-L251
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -66,7 +66,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/read_explicit().`
-`fn read_explicit(path: &Path, limit: u64) -> Result<(PathBuf, Vec<u8>), CliError>` · L266-L278
+`fn read_explicit(path: &Path, limit: u64) -> Result<(PathBuf, Vec<u8>), CliError>` · L273-L285
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -79,7 +79,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/output_path().`
-`fn output_path(path: &Path) -> Result<PathBuf, CliError>` · L280-L305
+`fn output_path(path: &Path) -> Result<PathBuf, CliError>` · L287-L312
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -105,7 +105,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/write_new().`
-`fn write_new(path: &Path, bytes: &[u8]) -> Result<(), CliError>` · L307-L319
+`fn write_new(path: &Path, bytes: &[u8]) -> Result<(), CliError>` · L314-L326
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -121,19 +121,22 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/git().`
-`fn git(root: &Path, args: &[&str], cancelled: &AtomicBool) -> Result<GitOutput, CliError>` · L338-L418
+`fn git(root: &Path, args: &[&str], cancelled: &AtomicBool) -> Result<GitOutput, CliError>` · L345-L405
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
   participant _tempfile as tempfile ext
+  participant visioncraft__git_metadata as git_metadata mod
   participant visioncraft__process as process mod
   visioncraft__cli->>_tempfile: Builder::new()
   visioncraft__cli->>_tempfile: Builder::prefix(#quot;visioncraft-…)
   visioncraft__cli->>_tempfile: Builder::permissions(from_mode())
   visioncraft__cli->>_tempfile: Builder::tempdir()
+  visioncraft__cli->>visioncraft__git_metadata: git_metadata::prefix()
   opt via ok_or_else
     visioncraft__cli->>visioncraft__cli: error(78, #quot;source root …)
   end
+  visioncraft__cli->>visioncraft__git_metadata: git_metadata::fixed_environment()
   visioncraft__cli->>visioncraft__process: process::run_command_with_env(&invocation, root, path()…
   alt Termination::Completed if captured.exit_code.is_some()
     visioncraft__cli->>visioncraft__cli: read_bounded(&captured.stdout, limit)?
@@ -149,7 +152,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/revision().`
-`fn revision(root: &Path, cancelled: &AtomicBool) -> Result<String, CliError>` · L420-L430
+`fn revision(root: &Path, cancelled: &AtomicBool) -> Result<String, CliError>` · L407-L417
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -166,7 +169,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/selected_dirty().`
-`fn selected_dirty(root: &Path, paths: &[String], cancelled: &AtomicBool) -> Result<bool, CliError>` · L432-L497
+`fn selected_dirty(root: &Path, paths: &[String], cancelled: &AtomicBool) -> Result<bool, CliError>` · L419-L484
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -233,7 +236,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/inputs().`
-`fn inputs(root: &Path, paths: &[String], missing_ok: bool) -> Result<Vec<Artifact>, CliError>` · L506-L534
+`fn inputs(root: &Path, paths: &[String], missing_ok: bool) -> Result<Vec<Artifact>, CliError>` · L493-L521
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -260,7 +263,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/source_snapshot().`
-`fn source_snapshot(root: &Path, paths: &[String], revision: &str, expected: &[Artifact],) -> Result<Vec<u8>, CliError>` · L536-L570
+`fn source_snapshot(root: &Path, paths: &[String], revision: &str, expected: &[Artifact],) -> Result<Vec<u8>, CliError>` · L523-L557
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -284,7 +287,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/init().`
-`fn init(options: InitOptions, cancelled: &AtomicBool) -> Result<i32, CliError>` · L577-L665
+`fn init(options: InitOptions, cancelled: &AtomicBool) -> Result<i32, CliError>` · L564-L652
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -337,7 +340,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/add_artifact().`
-`fn add_artifact(verified: &mut VerifiedArtifacts, root: &Path, artifact: &Artifact,) -> Result<(), CliError>` · L667-L675
+`fn add_artifact(verified: &mut VerifiedArtifacts, root: &Path, artifact: &Artifact,) -> Result<(), CliError>` · L654-L662
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -350,7 +353,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/evidence_parent().`
-`fn evidence_parent(root: &Path, path: &str) -> Result<PathBuf, CliError>` · L687-L698
+`fn evidence_parent(root: &Path, path: &str) -> Result<PathBuf, CliError>` · L674-L685
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -361,16 +364,14 @@ sequenceDiagram
     visioncraft__cli->>visioncraft__cli: error(2, #quot;artifact out…)
     Note over visioncraft__cli: return Err(error(2, #quot;artifact output path is not confin…
   end
-  opt let Some(parent) = path.parent()
-    opt !parent.exists()
-      visioncraft__cli->>visioncraft__process: process::private_directory(parent)
-    end
+  opt let Some(parent) = path.parent() && !parent.exists()
+    visioncraft__cli->>visioncraft__process: process::private_directory(parent)
   end
   visioncraft__cli->>visioncraft__cli: output_path(&path)
 ```
 
 ## `sym:cargo visioncraft . cli/run().`
-`fn run(options: RunOptions, cancelled: &AtomicBool) -> Result<i32, CliError>` · L772-L928
+`fn run(options: RunOptions, cancelled: &AtomicBool) -> Result<i32, CliError>` · L759-L915
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -452,7 +453,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/load_receipts().`
-`fn load_receipts(directory: &Path, verified: &mut VerifiedArtifacts,) -> Result<Vec<ExecutionReceipt>, CliError>` · L930-L960
+`fn load_receipts(directory: &Path, verified: &mut VerifiedArtifacts,) -> Result<Vec<ExecutionReceipt>, CliError>` · L917-L947
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -478,7 +479,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . cli/evaluate_options().`
-`fn evaluate_options(options: EvaluateOptions, cancelled: &AtomicBool) -> Result<i32, CliError>` · L962-L1089
+`fn evaluate_options(options: EvaluateOptions, cancelled: &AtomicBool) -> Result<i32, CliError>` · L949-L1094
 ```mermaid
 sequenceDiagram
   participant visioncraft__cli as cli mod
@@ -489,6 +490,7 @@ sequenceDiagram
   participant visioncraft__evaluate___tEvaluationContext as EvaluationContext
   participant _sealmap_corpus as sealmap_corpus ext
   participant visioncraft__evaluate as evaluate mod
+  participant _serde_json as serde_json ext
   visioncraft__cli->>visioncraft__cli: root(&options.root)?
   visioncraft__cli->>visioncraft__cli: read_plan(&options.plan)?
   visioncraft__cli->>visioncraft__cli: revision(&source_root, cancelled)?
@@ -506,7 +508,7 @@ sequenceDiagram
     visioncraft__cli->>visioncraft__cli: read_explicit(path, MAX_JSON)?
     visioncraft__cli->>visioncraft: crate::from_json(&bytes)
     visioncraft__cli->>visioncraft__plan___tSubject: validate()
-    opt supplied.repository != current.repository || supplie…
+    opt supplied.revision != current.revision || supplied.in…
       visioncraft__cli->>visioncraft__cli: error(2, #quot;supplied cur…)
       Note over visioncraft__cli: return Err(error(2, #quot;supplied current subject contradic…
     end
@@ -534,12 +536,13 @@ sequenceDiagram
   end
   visioncraft__cli->>visioncraft__evaluate: crate::evaluate(&plan, &receipts, &context)
   opt options.json
-    visioncraft__cli->>visioncraft__cli: print_json(&report)?
+    visioncraft__cli->>_serde_json: serde_json::to_value(&report)
+    visioncraft__cli->>visioncraft__cli: print_json(&output)?
   end
 ```
 
 ## `sym:cargo visioncraft . cli/execute().`
-`pub fn execute(cli: Cli, cancelled: &AtomicBool) -> Result<i32, CliError>` · L1091-L1130
+`pub fn execute(cli: Cli, cancelled: &AtomicBool) -> Result<i32, CliError>` · L1096-L1135
 > Dispatch an explicit CLI operation.
 ```mermaid
 sequenceDiagram

@@ -3,9 +3,9 @@ sealmap: 2
 source: src/process.rs
 module: "sym:cargo visioncraft . process/"
 language: rust
-source_hash: blake3:b24b8fb96eba5f197c4a00e8da464df9d6d53b98c4db058f9b684e8da1c64e3c
-lines: 425
-fragments: 2
+source_hash: blake3:aba99dafa4cb40a2a286eaa16908067cf850cba5953360fec3b16569bfff0d28
+lines: 727
+fragments: 7
 ---
 # `sym:cargo visioncraft . process/` · src/process.rs
 > Bounded local command execution.
@@ -50,13 +50,139 @@ classDiagram
   visioncraft__process___tCapturedRun *-- visioncraft__process___tTermination : termination
 ```
 
+## `sym:cargo visioncraft . process/group_running().`
+`fn group_running(pid: u32, deadline: Instant) -> io::Result<bool>` · L205-L227
+```mermaid
+sequenceDiagram
+  participant visioncraft__process as process mod
+  participant _nix as nix ext
+  participant visioncraft__process__linux_proc as linux_proc mod
+  visioncraft__process->>_nix: Pid::from_raw(group)
+  visioncraft__process->>_nix: signal::killpg(from_raw(), None)
+  visioncraft__process->>visioncraft__process: group_probe(killpg())?
+  opt !group_probe(killpg(Pid::from_raw(group), None))?
+    Note over visioncraft__process: return Ok(false)
+  end
+  visioncraft__process->>visioncraft__process__linux_proc: linux_proc::group_running(group, deadline)
+```
+
+## `sym:cargo visioncraft . process/linux_proc/no_longer_member().`
+`fn no_longer_member(pid: u32, group: i32) -> io::Result<bool>` · L330-L338
+```mermaid
+sequenceDiagram
+  participant visioncraft__process__linux_proc as linux_proc mod
+  participant _nix as nix ext
+  participant _io as io ext
+  opt via map_err
+    visioncraft__process__linux_proc->>visioncraft__process__linux_proc: unknown()
+  end
+  visioncraft__process__linux_proc->>_nix: Pid::from_raw(_)
+  visioncraft__process__linux_proc->>_nix: unistd::getpgid(Some())
+  opt Err(error)
+    visioncraft__process__linux_proc->>_io: Error::from(error)
+  end
+```
+
+## `sym:cargo visioncraft . process/linux_proc/tasks_dead().`
+`fn tasks_dead(process: &Path, group: i32, deadline: Instant) -> io::Result<bool>` · L340-L360
+```mermaid
+sequenceDiagram
+  participant visioncraft__process__linux_proc as linux_proc mod
+  visioncraft__process__linux_proc->>visioncraft__process__linux_proc: ids(&join(), deadline)?
+  opt tasks.is_empty()
+    visioncraft__process__linux_proc->>visioncraft__process__linux_proc: unknown()
+    Note over visioncraft__process__linux_proc: return Err(unknown())
+  end
+  loop for tid in tasks
+    visioncraft__process__linux_proc->>visioncraft__process__linux_proc: bounded_read(&join(), 8192)
+    alt Err(error) if error.kind() == io::ErrorKind::NotFound &…
+      visioncraft__process__linux_proc->>visioncraft__process__linux_proc: no_longer_member(tid, group)?
+    else Err(error)
+      Note over visioncraft__process__linux_proc: return Err(error)
+    end
+    visioncraft__process__linux_proc->>visioncraft__process__linux_proc: state(&record, tid, Some())?
+    visioncraft__process__linux_proc->>visioncraft__process__linux_proc: dead(_)
+    opt !dead(state(&record, tid, Some(group))?)
+      Note over visioncraft__process__linux_proc: return Ok(false)
+    end
+  end
+```
+
+## `sym:cargo visioncraft . process/linux_proc/dead_members().`
+`fn dead_members(group: i32, deadline: Instant) -> io::Result<Option<BTreeSet<u32>>>` · L362-L396
+```mermaid
+sequenceDiagram
+  participant visioncraft__process__linux_proc as linux_proc mod
+  visioncraft__process__linux_proc->>visioncraft__process__linux_proc: ids(new(), deadline)?
+  loop for pid in ids(Path::new(#quot;/proc#quot;), deadline)?
+    visioncraft__process__linux_proc->>visioncraft__process__linux_proc: no_longer_member(pid, group)?
+    visioncraft__process__linux_proc->>visioncraft__process__linux_proc: bounded_read(&join(), 8192)
+    alt Err(error) if error.kind() == io::ErrorKind::NotFound &…
+      visioncraft__process__linux_proc->>visioncraft__process__linux_proc: no_longer_member(pid, group)?
+    else Err(error)
+      Note over visioncraft__process__linux_proc: return Err(error)
+    end
+    visioncraft__process__linux_proc->>visioncraft__process__linux_proc: state(&record, pid, Some())?
+    visioncraft__process__linux_proc->>visioncraft__process__linux_proc: dead(_)
+    opt !dead(state(&record, pid, Some(group))?)
+      Note over visioncraft__process__linux_proc: return Ok(None)
+    end
+    visioncraft__process__linux_proc->>visioncraft__process__linux_proc: tasks_dead(&process, group, deadline)
+    alt Ok(false)
+      Note over visioncraft__process__linux_proc: return Ok(None)
+    else Err(error) if error.kind() == io::ErrorKind::NotFound &…
+      visioncraft__process__linux_proc->>visioncraft__process__linux_proc: no_longer_member(pid, group)?
+    else Err(error)
+      Note over visioncraft__process__linux_proc: return Err(error)
+    end
+  end
+```
+
+## `sym:cargo visioncraft . process/linux_proc/group_running().`
+`pub(super) fn group_running(group: i32, deadline: Instant) -> io::Result<bool>` · L398-L430
+```mermaid
+sequenceDiagram
+  participant visioncraft__process__linux_proc as linux_proc mod
+  participant _nix as nix ext
+  participant visioncraft__process as process mod
+  visioncraft__process__linux_proc->>visioncraft__process__linux_proc: bounded_read(new(), 1_048_576)?
+  opt via map_err
+    visioncraft__process__linux_proc->>visioncraft__process__linux_proc: unknown()
+  end
+  visioncraft__process__linux_proc->>visioncraft__process__linux_proc: unrestricted(_)
+  opt !unrestricted(std::str::from_utf8(&mounts).map_err(|…
+    visioncraft__process__linux_proc->>visioncraft__process__linux_proc: unknown()
+    Note over visioncraft__process__linux_proc: return Err(unknown())
+  end
+  visioncraft__process__linux_proc->>visioncraft__process__linux_proc: bounded_read(new(), 8192)?
+  visioncraft__process__linux_proc->>visioncraft__process__linux_proc: state(&_, id(), None)?
+  loop for _ in 0..3
+    visioncraft__process__linux_proc->>visioncraft__process__linux_proc: dead_members(group, deadline)?
+    opt let-else
+      Note over visioncraft__process__linux_proc: return Ok(true)
+    end
+    opt members.is_empty()
+      visioncraft__process__linux_proc->>_nix: Pid::from_raw(group)
+      visioncraft__process__linux_proc->>_nix: signal::killpg(from_raw(), None)
+      visioncraft__process__linux_proc->>visioncraft__process: super::group_probe(killpg())?
+      opt super::group_probe(nix::sys::signal::killpg(Pid::fro…
+        visioncraft__process__linux_proc->>visioncraft__process__linux_proc: unknown()
+      end
+      Note over visioncraft__process__linux_proc: return if super::group_probe(nix::sys::signal::killpg(P…
+    end
+    opt previous.as_ref() == Some(&members)
+      Note over visioncraft__process__linux_proc: return Ok(false)
+    end
+  end
+  visioncraft__process__linux_proc->>visioncraft__process__linux_proc: unknown()
+```
+
 ## `sym:cargo visioncraft . process/run_command_with_env().`
-`pub(crate) fn run_command_with_env(invocation: &Invocation, root: &Path, output: &Path, cancelled: &AtomicBool, inherit_stdin: bool, overrides: &std::collections::BTreeMap<String, String>,) -> io::Re…` · L225-L425
+`pub(crate) fn run_command_with_env(invocation: &Invocation, root: &Path, output: &Path, cancelled: &AtomicBool, inherit_stdin: bool, overrides: &std::collections::BTreeMap<String, String>,) -> io::Re…` · L518-L727
 ```mermaid
 sequenceDiagram
   participant visioncraft__process as process mod
   participant visioncraft__plan___tInvocation as Invocation
-  participant _nix as nix ext
   visioncraft__process->>visioncraft__plan___tInvocation: validate()
   visioncraft__process->>visioncraft__process: unix_now()
   visioncraft__process->>visioncraft__process: private_file(&stdout_path)?
@@ -74,10 +200,7 @@ sequenceDiagram
   visioncraft__process->>visioncraft__process: capture(expect(), stdout_file, clone(), clone(), clone(…
   visioncraft__process->>visioncraft__process: capture(expect(), stderr_file, total, clone(), clone(),…
   opt result.termination == Termination::Completed
-    opt via is_ok_and
-      visioncraft__process->>_nix: Pid::from_raw(p)
-      visioncraft__process->>_nix: signal::killpg(from_raw(), None)
-    end
+    visioncraft__process->>visioncraft__process: group_running(pid, _)
   end
   opt result.termination != Termination::Completed
     visioncraft__process->>visioncraft__process: signal_group(pid, SIGINT)

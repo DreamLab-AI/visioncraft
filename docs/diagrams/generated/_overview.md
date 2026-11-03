@@ -4,14 +4,18 @@ kind: overview
 codebase: visioncraft
 ---
 # visioncraft overview
-9 files · 151 symbols · 572 relations · 69 flows · 492 calls
+10 files · 168 symbols · 632 relations · 80 flows · 543 calls
 
 ## crates
 ```mermaid
 flowchart LR
   visioncraft(["visioncraft"])
   visioncraft_main(["visioncraft_main"])
+  Instant{{"Instant"}}
+  Path{{"Path"}}
   clap{{"clap"}}
+  fs{{"fs"}}
+  io{{"io"}}
   nix{{"nix"}}
   recorded{{"recorded"}}
   sealmap_corpus{{"sealmap_corpus"}}
@@ -21,12 +25,16 @@ flowchart LR
   signal_hook{{"signal_hook"}}
   tempfile{{"tempfile"}}
   url{{"url"}}
+  visioncraft -->|"4"| Instant
+  visioncraft -->|"3"| Path
   visioncraft -->|"5"| clap
-  visioncraft -->|"17"| nix
+  visioncraft -->|"1"| fs
+  visioncraft -->|"11"| io
+  visioncraft -->|"24"| nix
   visioncraft -->|"5"| recorded
   visioncraft -->|"37"| sealmap_corpus
   visioncraft -->|"14"| serde
-  visioncraft -->|"19"| serde_json
+  visioncraft -->|"20"| serde_json
   visioncraft -->|"3"| sha2
   visioncraft -->|"7"| tempfile
   visioncraft -->|"1"| url
@@ -44,6 +52,7 @@ flowchart LR
   visioncraft__deepsec_evidence["deepsec_evidence"]
   visioncraft__evaluate["evaluate"]
   visioncraft__evidence["evidence"]
+  visioncraft__git_metadata["git_metadata"]
   visioncraft__plan["plan"]
   visioncraft__process["process"]
   visioncraft -->|"7"| visioncraft__evaluate
@@ -53,9 +62,11 @@ flowchart LR
   visioncraft__cli -->|"2"| visioncraft__deepsec
   visioncraft__cli -->|"3"| visioncraft__evaluate
   visioncraft__cli -->|"16"| visioncraft__evidence
+  visioncraft__cli -->|"2"| visioncraft__git_metadata
   visioncraft__cli -->|"13"| visioncraft__plan
   visioncraft__cli -->|"8"| visioncraft__process
   visioncraft__deepsec -->|"3"| visioncraft
+  visioncraft__deepsec -->|"2"| visioncraft__git_metadata
   visioncraft__deepsec -->|"1"| visioncraft__plan
   visioncraft__deepsec -->|"8"| visioncraft__process
   visioncraft__deepsec_evidence -->|"4"| visioncraft

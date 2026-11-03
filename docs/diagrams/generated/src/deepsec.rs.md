@@ -3,8 +3,8 @@ sealmap: 2
 source: src/deepsec.rs
 module: "sym:cargo visioncraft . deepsec/"
 language: rust
-source_hash: blake3:fe5f7e3e8985a7eeb253589267c66d64771af816b56d031e6022a81c9b5649ae
-lines: 1013
+source_hash: blake3:f6a856414c586500e5bbcb69b8f4cee3caf40b2de0b8895792ad0ca34e45c977
+lines: 1063
 fragments: 5
 ---
 # `sym:cargo visioncraft . deepsec/` · src/deepsec.rs
@@ -173,24 +173,30 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . deepsec/Attempt#command().`
-`fn command(&mut self, stage: &str, program: &str, args: Vec<String>, cwd: &Path, model: bool, stdin: bool,) -> Result<(i32, Vec<u8>), GateError>` · L484-L548
+`fn command(&mut self, stage: &str, program: &str, args: Vec<String>, cwd: &Path, model: bool, stdin: bool,) -> Result<(i32, Vec<u8>), GateError>` · L484-L559
 ```mermaid
 sequenceDiagram
   participant visioncraft__deepsec___tAttempt as Attempt
   participant visioncraft__deepsec as deepsec mod
   participant visioncraft__process as process mod
+  participant visioncraft__git_metadata as git_metadata mod
   participant _serde_json as serde_json ext
   opt via ok_or_else
     visioncraft__deepsec___tAttempt->>visioncraft__deepsec: error(124, #quot;whole-attemp…)
   end
   visioncraft__deepsec___tAttempt->>visioncraft__process: private_directory(&directory)
-  visioncraft__deepsec___tAttempt->>visioncraft__deepsec: environment(self.policy, model)
+  alt program == #quot;git#quot;
+    visioncraft__deepsec___tAttempt->>visioncraft__git_metadata: git_metadata::prefix()
+    visioncraft__deepsec___tAttempt->>visioncraft__git_metadata: git_metadata::fixed_environment()
+  else
+    visioncraft__deepsec___tAttempt->>visioncraft__deepsec: environment(self.policy, model)
+  end
   visioncraft__deepsec___tAttempt->>_serde_json: serde_json::to_vec_pretty(&invocation)
   opt via map_err
     visioncraft__deepsec___tAttempt->>visioncraft__deepsec: error(70, #quot;invocation s…)
   end
   visioncraft__deepsec___tAttempt->>visioncraft__deepsec: write_new(&join(), &_)?
-  visioncraft__deepsec___tAttempt->>visioncraft__process: run_command(&invocation, cwd, &directory, self.cancelle…
+  visioncraft__deepsec___tAttempt->>visioncraft__process: run_command_with_env(&invocation, cwd, &directory, self…
   visioncraft__deepsec___tAttempt->>visioncraft__deepsec: read_bounded(&run.stdout, self.policy.max_output_bytes)?
   visioncraft__deepsec___tAttempt->>visioncraft__deepsec: read_bounded(&run.stderr, self.policy.max_output_bytes)?
   visioncraft__deepsec___tAttempt->>_serde_json: serde_json::to_vec_pretty(&execution)
@@ -214,7 +220,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . deepsec/execute().`
-`pub fn execute(options: &DeepsecOptions, cancelled: &AtomicBool) -> Result<i32, GateError>` · L571-L975
+`pub fn execute(options: &DeepsecOptions, cancelled: &AtomicBool) -> Result<i32, GateError>` · L618-L1025
 > Execute an explicitly requested security gate, returning its legacy exit code.
 ```mermaid
 sequenceDiagram
@@ -274,6 +280,7 @@ sequenceDiagram
     Note over visioncraft__deepsec: return Err(error(70, #quot;review workspace unavailable#quot;))
   end
   visioncraft__deepsec->>visioncraft__deepsec: workspace_lock(&workspace)?
+  visioncraft__deepsec->>visioncraft__deepsec: validate_workspace_tree(&workspace)?
   opt fs::symlink_metadata(&report).is_ok()
     visioncraft__deepsec->>visioncraft__deepsec: error(78, #quot;report direc…)
     Note over visioncraft__deepsec: return Err(error(78, #quot;report directory must be new#quot;))
@@ -285,8 +292,9 @@ sequenceDiagram
     visioncraft__deepsec->>visioncraft__deepsec: error(70, #quot;plan seriali…)
   end
   visioncraft__deepsec->>visioncraft__deepsec: write_new(&join(), &_)?
-  opt !workspace.join(#quot;.gitignore#quot;).exists()
-    visioncraft__deepsec->>visioncraft__deepsec: write_new(&join(), b#quot;*\n#quot;)?
+  visioncraft__deepsec->>_tempfile: NamedTempFile::new_in(&workspace)
+  opt via map_err
+    visioncraft__deepsec->>visioncraft__deepsec: error(70, #quot;cannot final…)
   end
   opt fs::symlink_metadata(&config).is_ok_and(| m |!m.is_f…
     visioncraft__deepsec->>visioncraft__deepsec: error(78, #quot;configuratio…)

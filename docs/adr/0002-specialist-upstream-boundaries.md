@@ -4,10 +4,11 @@ title: Consume specialist reviewers through versioned upstream contracts
 status: accepted
 date: 2026-11-03
 depends_on: [ADR-0001]
-verified_commit: 6f233886824ef3896cbd8c18fd35fc3b9fbc2bb6
+verified_commit: 2c5a625ce245be2a5ec2f0b30633d708b50afb9e
 verified_paths:
   - src/deepsec.rs
   - src/deepsec_evidence.rs
+  - src/git_metadata.rs
   - contracts/deepsec.json
   - contracts/agentic-qe.json
   - skills/visioncraft/references/agentic-qe.md

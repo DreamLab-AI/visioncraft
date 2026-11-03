@@ -4,7 +4,8 @@ The [generated overview](generated/_overview.md) and
 [per-source index](generated/_index.json) are extracted by Sealmap 0.4.0. Each
 source document has source hashes, symbol identities, spans and call confidence.
 Generated views are read-only; edit code and regenerate rather than hand-editing
-the output.
+the output. CI installs the pinned Sealmap 0.4.0 release and checks this corpus
+against the candidate source.
 
 ```sh
 sealmap generate . --name visioncraft --public-only --min-calls 4 --no-model \
@@ -19,9 +20,9 @@ consumption. Source extraction, Mermaid rendering and runtime verification are
 separate observations.
 
 The following authored view is verified against source at
-`6f233886824ef3896cbd8c18fd35fc3b9fbc2bb6`: `src/cli.rs:1096`,
-`src/plan.rs:295`, `src/evaluate.rs:532`, `src/process.rs:206`,
-`src/deepsec.rs:576` and `src/deepsec_evidence.rs:220`.
+`2c5a625ce245be2a5ec2f0b30633d708b50afb9e`: `src/cli.rs:1101`,
+`src/plan.rs:295`, `src/evaluate.rs:532`, `src/process.rs:499`,
+`src/deepsec.rs:623` and `src/deepsec_evidence.rs:220`.
 
 ```mermaid
 flowchart TD
