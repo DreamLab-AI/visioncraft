@@ -53,6 +53,10 @@ impl Subject {
 
 pub(crate) fn validate_inputs(inputs: &[Artifact]) -> Result<(), ContractError> {
     require(!inputs.is_empty(), "subject inputs cannot be empty")?;
+    validate_input_paths(inputs)
+}
+
+pub(crate) fn validate_input_paths(inputs: &[Artifact]) -> Result<(), ContractError> {
     let mut paths = BTreeSet::new();
     for a in inputs {
         artifact_shape(a)?;
@@ -192,7 +196,8 @@ pub struct Expectation {
     pub required: bool,
     /// Required observation category.
     pub category: EvidenceCategory,
-    /// Check IDs that support the expectation.
+    /// Check IDs that support the expectation. May be empty only for a manual
+    /// expectation without a required model audit.
     pub checks: Vec<String>,
     /// Requires a linked, executed regression test.
     pub regression_critical: bool,
@@ -239,6 +244,37 @@ impl QualityPlan {
     ///
     /// # Errors
     /// Refuses invalid JSON, unknown/duplicate fields and contract violations.
+    ///
+    /// # Examples
+    ///
+    /// This records a check; it does not run `cargo` or inspect the claimed source.
+    /// Source hashes here illustrate the shape and must be replaced by actual
+    /// selected bytes before producing execution receipts.
+    ///
+    /// ```
+    /// use visioncraft::QualityPlan;
+    /// let plan = QualityPlan::parse(br#"{
+    ///   "version": 1, "id": "unit-contract",
+    ///   "subject": {
+    ///     "repository": "example", "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ///     "configuration": "default features", "dirty": false, "working_tree": null,
+    ///     "inputs": [{"path": "src/lib.rs",
+    ///       "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]
+    ///   },
+    ///   "checks": [{
+    ///     "id": "unit", "required": true,
+    ///     "invocation": {"program": "cargo", "args": ["test"], "cwd": ".",
+    ///       "env": ["PATH"], "timeout_ms": 60000, "max_output_bytes": 1048576},
+    ///     "evaluator": {"kind": "exit-code", "success_codes": [0]},
+    ///     "scope": ["src/lib.rs"]
+    ///   }],
+    ///   "expectations": [],
+    ///   "policy": {"max_age_ms": 86400000, "require_observed_scope": false}
+    /// }"#)?;
+    /// assert_eq!(plan.checks[0].id, "unit");
+    /// assert_eq!(plan.digest()?.len(), 64);
+    /// # Ok::<(), visioncraft::ContractError>(())
+    /// ```
     pub fn parse(bytes: &[u8]) -> Result<Self, ContractError> {
         let plan: Self = from_json(bytes)?;
         plan.validate()?;
@@ -302,7 +338,8 @@ impl QualityPlan {
             require(nonempty(&e.claim), "expectation claim is required")?;
             let checks: BTreeSet<_> = e.checks.iter().collect();
             require(
-                !checks.is_empty()
+                (!checks.is_empty()
+                    || (e.category == EvidenceCategory::Manual && !e.independent_audit))
                     && checks.len() == e.checks.len()
                     && checks.iter().all(|c| ids.contains(c)),
                 "expectation must uniquely reference declared checks",

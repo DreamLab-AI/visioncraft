@@ -206,10 +206,19 @@ fn check_receipt(
     if receipt.elapsed_ms > check.invocation.timeout_ms {
         return error("completed execution exceeded the configured deadline");
     }
+    let mut output_bytes = 0u64;
     for output in receipt.stdout.iter().chain(receipt.stderr.iter()) {
-        if !context.verified.contains(output) {
+        if let Some(bytes) = context.verified.byte_len(output) {
+            let Some(total) = output_bytes.checked_add(bytes) else {
+                return error("output length overflow");
+            };
+            output_bytes = total;
+        } else {
             return error("raw output artifact has not been byte-verified");
         }
+    }
+    if output_bytes > check.invocation.max_output_bytes {
+        return error("verified raw output exceeds configured capture limit");
     }
     if let Some(snapshot) = &receipt.subject.working_tree {
         if !context.verified.contains(snapshot) {
@@ -341,7 +350,12 @@ fn expectation_report(
     if let Some(limit) = &expectation.limitation {
         reasons.push(format!("declared limitation: {limit}"));
     }
-    if expectation.independent_audit {
+    if expectation.independent_audit
+        || context
+            .audits
+            .iter()
+            .any(|a| a.expectation_id == expectation.id)
+    {
         let audits: Vec<_> = context
             .audits
             .iter()
@@ -376,8 +390,10 @@ fn expectation_report(
                 )?;
                 crate::require(
                     expectation.checks.iter().any(|id| {
-                        runs.get(id.as_str())
-                            .is_some_and(|r| r.attempt_id == a.producer.attempt_id)
+                        runs.get(id.as_str()).is_some_and(|r| {
+                            r.attempt_id == a.producer.attempt_id
+                                && r.finished_at_ms <= a.captured_at_ms
+                        })
                     }),
                     "producer does not reference supporting execution",
                 )?;
@@ -386,33 +402,45 @@ fn expectation_report(
                     "audit requires a distinct adversarial probe",
                 )?;
                 crate::require(
-                    runs.get(a.probe_check.as_str())
-                        .is_some_and(|r| r.attempt_id == a.reviewer.attempt_id),
+                    runs.get(a.probe_check.as_str()).is_some_and(|r| {
+                        r.attempt_id == a.reviewer.attempt_id
+                            && r.finished_at_ms <= a.captured_at_ms
+                    }),
                     "reviewer does not reference the probe execution",
                 )?;
                 crate::require(
-                    checks
-                        .iter()
-                        .any(|c| c.id == a.probe_check && c.outcome == CheckOutcome::Passed),
+                    checks.iter().any(|c| {
+                        c.id == a.probe_check
+                            && (c.outcome == CheckOutcome::Passed
+                                || (a.verdict == AuditVerdict::Contradicted
+                                    && c.outcome == CheckOutcome::Blocked))
+                    }),
                     "adversarial probe did not complete successfully",
                 )?;
-                sealmap_corpus::route::cross_family_with(
-                    &a.producer.model,
-                    &a.reviewer.model,
-                    &context.families,
-                )
-                .map_err(|_| {
-                    ContractError::Invalid(
-                        "audit model-family independence is unknown or not satisfied".into(),
+                if expectation.independent_audit {
+                    sealmap_corpus::route::cross_family_with(
+                        &a.producer.model,
+                        &a.reviewer.model,
+                        &context.families,
                     )
-                })?;
+                    .map_err(|_| {
+                        ContractError::Invalid(
+                            "audit model-family independence is unknown or not satisfied".into(),
+                        )
+                    })?;
+                }
                 Ok(a.verdict)
             })()
         };
         match validation {
-            Ok(AuditVerdict::Supported) => {
-                reasons.push("recorded independent audit supports the scoped claim".into())
-            }
+            Ok(AuditVerdict::Supported) => reasons.push(
+                if expectation.independent_audit {
+                    "recorded independent audit supports the scoped claim"
+                } else {
+                    "recorded audit supports the scoped claim; model independence was not required"
+                }
+                .into(),
+            ),
             Ok(AuditVerdict::Contradicted) => {
                 outcome = CheckOutcome::Blocked;
                 reasons.push("auditor recorded a counterexample".into());
@@ -431,7 +459,12 @@ fn expectation_report(
             }
         }
     }
-    if expectation.category == EvidenceCategory::Manual {
+    if expectation.category == EvidenceCategory::Manual
+        || context
+            .manual_observations
+            .iter()
+            .any(|m| m.expectation_id == expectation.id)
+    {
         let observations: Vec<_> = context
             .manual_observations
             .iter()
@@ -524,6 +557,19 @@ pub fn evaluate(
     let mut runs = BTreeMap::new();
     let ids: BTreeSet<_> = plan.checks.iter().map(|c| c.id.as_str()).collect();
     for receipt in receipts {
+        if let Err(error) = receipt.validate() {
+            report.errors.push(error.to_string());
+        }
+        if let Some(check) = plan.checks.iter().find(|c| c.id == receipt.check_id) {
+            if receipt.plan_sha256 != digest
+                || receipt.subject != plan.subject
+                || receipt.invocation != check.invocation
+            {
+                report
+                    .errors
+                    .push("receipt does not bind to its declared plan/subject/invocation".into());
+            }
+        }
         if !ids.contains(receipt.check_id.as_str()) {
             report
                 .errors
