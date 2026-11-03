@@ -68,6 +68,23 @@ Retained Rust digests carry their own underlying-source acknowledgements.
 Do not remove those notices or treat future upstream additions as covered by
 this import record without checking them.
 
+## Optional upstream tool contracts
+
+Deepsec and Agentic QE are external installations, not vendored engines.
+Their new operating guidance and protocol manifests are independently written
+under the project licence. [Deepsec maintenance](UPSTREAM-DEEPSEC.md) and
+`contracts/deepsec.json` identify the inspected npm 2.3.10 release, immutable
+source commit and verified tarball integrity.
+
+`contracts/agentic-qe.json` identifies npm 3.15.10 and hashes the inspected
+published MCP/CLI implementation files. The npm metadata did not expose a
+`gitHead`; its registry SLSA statement reports
+`e5814a2f4f3d7995b87ebda9ad30e8a3d92cd555` at tag `v3.15.10`. The tarball SHA-512
+matched both npm integrity and the decoded attestation's subject. This check
+did not independently verify the attestation signature. Typed schemas describe
+the result subset VisionCraft's guidance consumes; they are not an implementation
+of AQE or a claim that a real MCP task was run during source inspection.
+
 ## Evidence limits
 
 Structural checks, licence manifests and path coverage do not establish a

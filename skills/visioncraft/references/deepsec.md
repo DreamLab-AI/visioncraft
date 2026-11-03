@@ -10,6 +10,15 @@ Compatibility is based on the inspected Deepsec 2.3.10
 protocol. Consult the installed version's own help/documentation before changing
 its flags or result interpretation. A later version needs compatibility evidence.
 
+Deepsec remains an optional upstream dependency, maintained by its own project.
+VisionCraft does not fork its reviewers. The package's `contracts/deepsec.json`
+pins npm version, upstream commit, integrity and protocol-fixture version; the
+package's `docs/UPSTREAM-DEEPSEC.md` gives the update procedure. Read bundled
+release documentation, compare flags/configuration/exports/exits/model routes,
+run completion and failure fixtures, perform an authorised bounded real smoke,
+then align exact host pins before release and rebuild. A release monitor may
+propose a PR; it must not auto-activate or start paid work.
+
 ## Declare the attempt
 
 Choose exactly one supported scope/mode, the base revision or file list,
@@ -37,6 +46,15 @@ unknown severities and incomplete/truncated capture. Keep severity order and
 threshold explicit, including bug categories such as `HIGH_BUG` and `BUG`.
 A policy pass means no counted finding crossed that threshold, not zero
 findings or a secure system.
+
+VisionCraft also requires persisted completion evidence for the frozen file
+set: one fresh completed processing run, matching project/root and processed
+count, exact path/hash `analyzed` file records, and current-run history with
+model/agent identity, positive output tokens, explicit non-refusal and no
+skipped scope. A fresh comment alone is insufficient. Direct mode processes the
+explicit files with `--no-ignore`; staged/working byte mismatches are refused.
+Full mode processes scanned pending candidates; an empty set is unavailable,
+not a successful full review. Retain those raw records alongside the export.
 
 Legacy outcome conventions are 0 for completed policy pass (or separately
 labelled scan-only completion), 1 for blocking findings, 70 for runtime/export

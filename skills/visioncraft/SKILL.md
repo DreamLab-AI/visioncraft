@@ -32,6 +32,7 @@ command surface.
 | Specifications, prompts and delivery need lineage | [Traceability](references/traceability.md) |
 | An audit or reviewer supplied findings | [Review evidence](references/review-evidence.md) |
 | A merge/release needs applicable checks | [Quality gates](references/quality-gates.md), [Deepsec adapter](references/deepsec.md) |
+| Candidate tests, coverage gaps or measured quality tools would help | [Optional Agentic QE](references/agentic-qe.md) |
 | Rust is being written, reviewed or ported | [Steering](references/rust/steering.md), [review](references/rust/review.md), [port](references/rust/port.md) |
 | Several participants are actually available | [Logical roles](references/roles.md) |
 | A concrete project example helps scope the work | [Five worked examples](references/worked-examples.md) |

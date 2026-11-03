@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "adapter_protocol_version": "deepsec-cli-2.3.10-v1",
+  "supported_versions": [
+    "2.3.10"
+  ],
+  "unsupported_version": {
+    "outcome": "unavailable",
+    "exit_code": 78,
+    "may_satisfy_required_gate": false
+  },
+  "package": {
+    "name": "deepsec",
+    "version": "2.3.10",
+    "registry_url": "https://registry.npmjs.org/deepsec/2.3.10",
+    "tarball_url": "https://registry.npmjs.org/deepsec/-/deepsec-2.3.10.tgz",
+    "integrity": "sha512-JybqShqRHJWdgqQKV6xwtf3p+QMW7wlmgoBtT1QISfns5A5JCO5r9E8b4mXgu7HEoY5HK+izdxI4con+ROLWdA==",
+    "shasum": "7213cb0e1abf54a4855efe0518d5d1b519b73f33",
+    "git_head": "ce646748b6b2d7b088107ac29944c4129c49f11d",
+    "licence": "Apache-2.0"
+  },
+  "upstream": {
+    "repository": "https://github.com/vercel-labs/deepsec",
+    "release_source_url": "https://github.com/vercel-labs/deepsec/tree/ce646748b6b2d7b088107ac29944c4129c49f11d",
+    "package_manifest_url": "https://github.com/vercel-labs/deepsec/blob/ce646748b6b2d7b088107ac29944c4129c49f11d/packages/deepsec/package.json"
+  },
+  "required_receipt_fields": [
+    "deepsec_version",
+    "deepsec_git_head",
+    "deepsec_npm_integrity",
+    "deepsec_protocol_version"
+  ],
+  "receipt_field_semantics": {
+    "deepsec_version": "Version observed from the invoked CLI.",
+    "deepsec_git_head": "Expected npm release gitHead; not an independently observed installed-source revision.",
+    "deepsec_npm_integrity": "Expected npm tarball integrity; host installation evidence must establish that installed bytes came from this artifact.",
+    "deepsec_protocol_version": "Version of the VisionCraft protocol fixture contract applied to this invocation."
+  },
+  "installed_documentation": [
+    "SKILL.md",
+    "dist/docs/reviewing-changes.md",
+    "dist/docs/configuration.md",
+    "dist/docs/models.md",
+    "dist/docs/data-layout.md"
+  ],
+  "boundary": {
+    "optional": true,
+    "core_requires_deepsec": false,
+    "implementation": "External CLI adapter; no upstream reviewer fork.",
+    "host_owns": [
+      "installation",
+      "dependency lock",
+      "credentials",
+      "model and route selection",
+      "source-sharing policy",
+      "spend authorisation",
+      "deployment activation"
+    ],
+    "visioncraft_owns": [
+      "supported version check",
+      "explicit bounded invocation",
+      "private evidence capture",
+      "fresh completion and valid export checks",
+      "declared severity threshold"
+    ],
+    "never_implicit": [
+      "init",
+      "login",
+      "installation",
+      "changing default model routes",
+      "paid review",
+      "activation"
+    ]
+  },
+  "verification": {
+    "checked_at": "2026-11-03T10:47:51Z",
+    "npm_tarball_integrity_verified": true,
+    "upstream_main_observed": "4fa67220aff67ac93dfc840206d3d32bfa4411ec",
+    "upstream_main_is_release_source": false,
+    "scope": "Registry metadata, downloaded tarball, bundled documentation and immutable upstream commit; no model review executed by this provenance check."
+  },
+  "completion_protocol": {
+    "source_selection": "Nonempty explicit snapshot; direct processing uses --files-from and --no-ignore; staged/working mismatch refused; full processes selected pending scan candidates.",
+    "run_fields": [
+      "type=process",
+      "runId",
+      "projectId",
+      "rootPath",
+      "phase=done",
+      "completedAt",
+      "stats.filesProcessed=expected_count"
+    ],
+    "file_fields": [
+      "filePath",
+      "projectId",
+      "fileHash=expected_sha256",
+      "status=analyzed",
+      "analysisHistory exactly one current runId"
+    ],
+    "analysis_fields": [
+      "refusal.refused=false",
+      "no skipped scope",
+      "usage.outputTokens>0",
+      "nonempty model",
+      "nonempty agentType"
+    ],
+    "empty_full_pending_set": "unavailable, no new review",
+    "semantic_boundary": "Recorded per-file investigations of exact selected bytes; dependencies/runtime behaviour remain separate."
+  }
+}

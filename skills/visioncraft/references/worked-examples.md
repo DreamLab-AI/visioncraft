@@ -5,6 +5,11 @@ versions and limits from the actual project. Expected behaviours below define
 example contracts; they do not claim test output, production readiness or a
 universal percentage gate.
 
+An optional [AQE example](agentic-qe.md#worked-source-to-test-flow) shows candidate
+generation, native test execution and measured coverage as separate steps.
+Apply it where those tools are actually available; these five project examples
+do not require an AQE installation or an orchestration service.
+
 ## 1. A personal todo application
 
 **Request.** Add creation, editing, completion, deletion, filtering and local
