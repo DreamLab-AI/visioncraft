@@ -1,0 +1,80 @@
+{
+  "groups": [
+    {
+      "arm": "baseline",
+      "split": "test",
+      "attempts": 3,
+      "completed": 3,
+      "evaluations": 12,
+      "hard_acc": 1.0,
+      "soft_acc": 1.0,
+      "hard_replicates": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "soft_replicates": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "failures": []
+    },
+    {
+      "arm": "baseline",
+      "split": "train",
+      "attempts": 1,
+      "completed": 1,
+      "evaluations": 4,
+      "hard_acc": 1.0,
+      "soft_acc": 1.0,
+      "hard_replicates": [
+        1.0
+      ],
+      "soft_replicates": [
+        1.0
+      ],
+      "failures": []
+    },
+    {
+      "arm": "candidate",
+      "split": "test",
+      "attempts": 3,
+      "completed": 3,
+      "evaluations": 12,
+      "hard_acc": 1.0,
+      "soft_acc": 1.0,
+      "hard_replicates": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "soft_replicates": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "failures": []
+    },
+    {
+      "arm": "candidate",
+      "split": "val",
+      "attempts": 1,
+      "completed": 1,
+      "evaluations": 4,
+      "hard_acc": 1.0,
+      "soft_acc": 1.0,
+      "hard_replicates": [
+        1.0
+      ],
+      "soft_replicates": [
+        1.0
+      ],
+      "failures": []
+    }
+  ],
+  "target_calls": 8,
+  "no_candidate_edits_during_comparison": true,
+  "test_prompts_or_answers_exposed_in_report": false,
+  "pilot_saturated": true
+}
