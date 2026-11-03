@@ -1,12 +1,12 @@
 //! Immutable run and audit records, with caller-supplied byte verification.
 
-use crate::plan::validate_inputs;
+use crate::plan::validate_input_paths;
 use crate::{
     Artifact, CheckOutcome, ContractError, Invocation, Subject, artifact_shape, hex, identifier,
     nonempty, require, sha256,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// What happened to the process, independently of an evaluator's verdict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -81,6 +81,7 @@ pub struct ExecutionReceipt {
     /// Captured standard error, absent only when execution/capture failed.
     pub stderr: Option<Artifact>,
     /// Input hashes after execution, to detect mutation during the check.
+    /// Empty records deletion of every selected input, never successful stability.
     pub inputs_after: Vec<Artifact>,
     /// Observed source coverage; `None` explicitly means unknown.
     pub observed_scope: Option<Vec<String>>,
@@ -153,7 +154,7 @@ impl ExecutionReceipt {
         for a in self.stdout.iter().chain(self.stderr.iter()) {
             artifact_shape(a)?;
         }
-        validate_inputs(&self.inputs_after)?;
+        validate_input_paths(&self.inputs_after)?;
         if let Some(paths) = &self.observed_scope {
             let unique: BTreeSet<_> = paths.iter().collect();
             require(
@@ -255,7 +256,7 @@ pub struct ManualObservation {
 /// root. A hash establishes byte identity, not truth, authority or safe storage.
 #[derive(Debug, Clone, Default)]
 pub struct VerifiedArtifacts {
-    entries: BTreeSet<(String, String)>,
+    entries: BTreeMap<(String, String), u64>,
 }
 
 impl VerifiedArtifacts {
@@ -269,14 +270,23 @@ impl VerifiedArtifacts {
             sha256(bytes) == artifact.sha256,
             "artifact bytes do not match SHA-256",
         )?;
-        self.entries
-            .insert((artifact.path.clone(), artifact.sha256.clone()));
+        self.entries.insert(
+            (artifact.path.clone(), artifact.sha256.clone()),
+            bytes.len() as u64,
+        );
         Ok(())
     }
 
     /// Whether this exact path and byte digest have been verified.
     pub fn contains(&self, artifact: &Artifact) -> bool {
         self.entries
-            .contains(&(artifact.path.clone(), artifact.sha256.clone()))
+            .contains_key(&(artifact.path.clone(), artifact.sha256.clone()))
+    }
+
+    /// Byte length of an exact verified artifact, not a claimed receipt length.
+    pub fn byte_len(&self, artifact: &Artifact) -> Option<u64> {
+        self.entries
+            .get(&(artifact.path.clone(), artifact.sha256.clone()))
+            .copied()
     }
 }
