@@ -41,6 +41,12 @@
       "behavioural_sources": []
     },
     {
+      "path": "assets/provenance.json",
+      "licence": "MIT OR Apache-2.0",
+      "treatment": "newly written file-level provenance manifest",
+      "behavioural_sources": []
+    },
+    {
       "path": "assets/traceability.md",
       "licence": "MIT OR Apache-2.0",
       "treatment": "newly written guidance or migration data from the behavioural inventory",
@@ -51,6 +57,17 @@
       "licence": "MIT OR Apache-2.0",
       "treatment": "newly written guidance or migration data from the behavioural inventory",
       "behavioural_sources": []
+    },
+    {
+      "path": "references/agentic-qe.md",
+      "licence": "MIT OR Apache-2.0",
+      "treatment": "New guidance from read-only inspection of published agentic-qe 3.15.10 MCP/CLI contracts; no upstream implementation copied.",
+      "behavioural_sources": [],
+      "external_source": {
+        "package": "agentic-qe",
+        "version": "3.15.10",
+        "contract": "contracts/agentic-qe.json"
+      }
     },
     {
       "path": "references/architecture.md",
@@ -153,9 +170,7 @@
       "upstream": {
         "repository": "https://github.com/morganlinton/BeautifulRust",
         "revision": "a9cdcfa94d1330c0d41c7f67764c5f7786fbb71d",
-        "paths": [
-          "LICENSE"
-        ]
+        "mapping_note": "Inherited full notice and attribution; source_import gives the verified imported file. No independently checked upstream licence-file path is asserted."
       },
       "source_import": {
         "repository": "https://github.com/DreamLab-AI/agentbox",
@@ -389,12 +404,6 @@
       "behavioural_sources": [
         "USAGE-EXAMPLES.md"
       ]
-    },
-    {
-      "path": "assets/provenance.json",
-      "licence": "MIT OR Apache-2.0",
-      "treatment": "newly written file-level provenance manifest",
-      "behavioural_sources": []
     }
   ],
   "limitations": [

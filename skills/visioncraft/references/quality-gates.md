@@ -45,6 +45,13 @@ subject revision and configuration. Paid external review follows the current
 project's cadence; do not run it automatically after every increment. A check
 before later edits must not be presented as review of the final diff.
 
+When available, [AQE's direct tools](agentic-qe.md) can propose tests and explain
+coverage gaps. Preserve the generated source and measurement provenance, then
+run the real project tests and instrumentation. Its static analysis and fixed
+seven-metric gate have different contracts; unavailable measurements must not
+satisfy the project's required checks. Keep the complete raw MCP response
+beside subsequent native test evidence.
+
 ## Outcome dimensions
 
 Record process completion separately from evaluator judgement. A process can

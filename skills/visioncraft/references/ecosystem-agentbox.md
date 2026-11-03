@@ -34,6 +34,21 @@ available workers and retain their execution provenance. Host-configured model
 defaults and advisors belong to that host. A same-family advisor is not an
 independent auditor, regardless of provider spelling or role label.
 
+## Direct AQE testing tools
+
+Agentbox can enable its separately pinned `agentic-qe` toolchain and project a
+direct `aqe mcp` server to its coding clients. Discovery must confirm callable
+tools after the rebuild; an enabled source flag is not deployed evidence.
+See [the AQE workflow](agentic-qe.md) for exact 3.15.10 input examples and result
+limits. Jev selects VisionCraft's engineering method; AQE provides optional
+domain execution, while Ruflo remains a separate coordination surface.
+
+Use the host's in-memory AQE setting and existing RuVector MCP for durable
+lessons. Memory mode does not disable internal embedding attempts. Do not add a
+new model service or assume that AQE's default model can be replaced by any
+384-dimensional endpoint. Preserve unavailable learning capability separately
+from working native tests, and verify actual filesystem/runtime behaviour.
+
 ## Security adapter and review cadence
 
 Agentbox supplies toolchain pins, `[security.deepsec]` policy, route/credential

@@ -38,6 +38,13 @@ redirection; they are not a general sandbox against hostile concurrent mutation.
 
 ## Optional knowledge services
 
+[Agentic QE](agentic-qe.md) is an optional external testing engine. Its direct
+MCP tools can generate candidate tests, analyse coverage or report quality
+evidence. VisionCraft does not implement a second AQE executor or copy its
+agents. Discover the host's actual tools and preserve their raw results; run
+generated tests with the project's real toolchain before treating them as
+evidence. Ruflo coordination and direct AQE execution are separate observations.
+
 A project may retain episodic attempts and durable lessons, use exact tags for
 lookup, link entities/decisions, or combine lexical and semantic retrieval.
 Those are useful host capabilities when implemented. Do not assume a vector
