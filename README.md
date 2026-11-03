@@ -6,6 +6,11 @@ VisionCraft helps you define a change, run proportionate checks, assess what the
 results support, and carry that evidence through review and release. Use its
 [skill](skills/visioncraft/SKILL.md), Rust library, CLI, or a combination.
 
+Developed within DreamLab-AI's [VisionFlow estate](https://github.com/DreamLab-AI/VisionFlow),
+VisionCraft packages the estate's engineering and review practices for reuse in
+any project. It is published on [crates.io](https://crates.io/crates/visioncraft),
+with [Rust API documentation](https://docs.rs/visioncraft).
+
 It works without Agentbox, an orchestration framework or a model subscription.
 The deterministic core does not launch processes or make network calls. The optional CLI
 runs explicitly requested commands; optional upstream tools provide their own
@@ -206,7 +211,24 @@ observations and verified current inputs. `evaluate` returns both the aggregate
 outcome and individual check/expectation results. See the generated rustdoc and
 [executable contract tests](tests/core.rs) for complete typed examples.
 
-## Place in the ecosystem: Agentbox
+## Place in the VisionFlow estate
+
+VisionCraft grew from the Build with Quality skill used across the VisionFlow
+estate. The reusable method, Rust library and CLI now live in this repository;
+hosts consume a pinned release and supply their own execution environment.
+
+| Project | Role and connection to VisionCraft |
+|---|---|
+| [VisionFlow](https://github.com/DreamLab-AI/VisionFlow) | Cross-repository architecture diagrams, audit records and estate documentation; VisionCraft guides how changes are checked and evidenced. |
+| [Sealmap](https://github.com/DreamLab-AI/sealmap) | Shared source-derived diagrams and review contracts consumed by VisionCraft. |
+| [Agentbox](https://github.com/DreamLab-AI/agentbox) | A host integration that installs VisionCraft, supplies policy and routes agents to its canonical skill. |
+| VisionCraft | Portable engineering guidance, executable quality plans and evidence gates for these projects and independent consumers. |
+
+Each project keeps its own requirements, ADRs, tests and release records.
+VisionCraft connects the work to that evidence; host adapters provide credentials,
+model access and deployment controls where needed.
+
+### Agentbox integration
 
 Agentbox is one consumer. It installs a pinned VisionCraft release, distributes
 that release's canonical skill, projects host policy and credentials, and
@@ -242,9 +264,7 @@ and `RUSTDOCFLAGS='-D warnings' cargo doc --no-deps`. The
 [implementation contract](docs/EXPECTATIONS.md) records acceptance boundaries.
 The [release review](docs/REVIEW-2026-11-03.md) records reproduced counterexamples
 and their dispositions.
-[Zeroshot lessons](docs/ZEROSHOT-LESSONS.md) document source-grounded design
-patterns adopted without importing another execution engine. Structural skill
-checks and forward evaluations are reported separately from
+Structural skill checks and forward evaluations are reported separately from
 any measured improvement; this rewrite does not imply a success-rate uplift.
 
 MIT OR Apache-2.0. Attributed BeautifulRust material retains its original MIT
