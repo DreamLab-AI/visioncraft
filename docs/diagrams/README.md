@@ -20,16 +20,16 @@ consumption. Source extraction, Mermaid rendering and runtime verification are
 separate observations.
 
 The following authored view is verified against source at
-`2c5a625ce245be2a5ec2f0b30633d708b50afb9e`: `src/cli.rs:1101`,
-`src/plan.rs:295`, `src/evaluate.rs:532`, `src/process.rs:499`,
-`src/deepsec.rs:623` and `src/deepsec_evidence.rs:220`.
+`e3306776ebab083a7842b02ce4fec4e0a2bbc77c`: `src/cli.rs:1084`,
+`src/plan.rs:295`, `src/evaluate.rs:541`, `src/process.rs:594`,
+`src/deepsec.rs:645` and `src/deepsec_evidence.rs:362`.
 
 ```mermaid
 flowchart TD
   User[Explicit CLI operation] --> Plan[Typed quality plan]
   Plan --> Admit[Validate references and aggregate limits]
   Admit --> Run[Run selected checks]
-  Run --> Process[Bounded Unix process group]
+  Run --> Process[Bounded Linux process group]
   Process --> Receipt[Private execution receipts and raw captures]
   Receipt --> Verify[Verify artifact bytes and current source]
   Verify --> Gate[Evaluate checks and expectations]

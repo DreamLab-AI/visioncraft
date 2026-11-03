@@ -3,8 +3,8 @@ sealmap: 2
 source: src/process.rs
 module: "sym:cargo visioncraft . process/"
 language: rust
-source_hash: blake3:aba99dafa4cb40a2a286eaa16908067cf850cba5953360fec3b16569bfff0d28
-lines: 727
+source_hash: blake3:3653d7e09689bd761ffeff3e445975bfa935814efde0ebb6aa9c1ce2adcd903b
+lines: 841
 fragments: 7
 ---
 # `sym:cargo visioncraft . process/` · src/process.rs
@@ -51,7 +51,7 @@ classDiagram
 ```
 
 ## `sym:cargo visioncraft . process/group_running().`
-`fn group_running(pid: u32, deadline: Instant) -> io::Result<bool>` · L205-L227
+`fn group_running(pid: u32, deadline: Instant) -> io::Result<bool>` · L305-L318
 ```mermaid
 sequenceDiagram
   participant visioncraft__process as process mod
@@ -67,7 +67,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . process/linux_proc/no_longer_member().`
-`fn no_longer_member(pid: u32, group: i32) -> io::Result<bool>` · L330-L338
+`fn no_longer_member(pid: u32, group: i32) -> io::Result<bool>` · L421-L429
 ```mermaid
 sequenceDiagram
   participant visioncraft__process__linux_proc as linux_proc mod
@@ -84,7 +84,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . process/linux_proc/tasks_dead().`
-`fn tasks_dead(process: &Path, group: i32, deadline: Instant) -> io::Result<bool>` · L340-L360
+`fn tasks_dead(process: &Path, group: i32, deadline: Instant) -> io::Result<bool>` · L431-L451
 ```mermaid
 sequenceDiagram
   participant visioncraft__process__linux_proc as linux_proc mod
@@ -109,7 +109,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . process/linux_proc/dead_members().`
-`fn dead_members(group: i32, deadline: Instant) -> io::Result<Option<BTreeSet<u32>>>` · L362-L396
+`fn dead_members(group: i32, deadline: Instant) -> io::Result<Option<BTreeSet<u32>>>` · L453-L487
 ```mermaid
 sequenceDiagram
   participant visioncraft__process__linux_proc as linux_proc mod
@@ -139,7 +139,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . process/linux_proc/group_running().`
-`pub(super) fn group_running(group: i32, deadline: Instant) -> io::Result<bool>` · L398-L430
+`pub(super) fn group_running(group: i32, deadline: Instant) -> io::Result<bool>` · L489-L521
 ```mermaid
 sequenceDiagram
   participant visioncraft__process__linux_proc as linux_proc mod
@@ -178,7 +178,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . process/run_command_with_env().`
-`pub(crate) fn run_command_with_env(invocation: &Invocation, root: &Path, output: &Path, cancelled: &AtomicBool, inherit_stdin: bool, overrides: &std::collections::BTreeMap<String, String>,) -> io::Re…` · L518-L727
+`pub(crate) fn run_command_with_env(invocation: &Invocation, root: &Path, output: &Path, cancelled: &AtomicBool, inherit_stdin: bool, overrides: &std::collections::BTreeMap<String, String>,) -> io::Re…` · L613-L841
 ```mermaid
 sequenceDiagram
   participant visioncraft__process as process mod
@@ -199,12 +199,20 @@ sequenceDiagram
   end
   visioncraft__process->>visioncraft__process: capture(expect(), stdout_file, clone(), clone(), clone(…
   visioncraft__process->>visioncraft__process: capture(expect(), stderr_file, total, clone(), clone(),…
+  loop loop
+    visioncraft__process->>visioncraft__process: leader_exited(&child)
+  end
   opt result.termination == Termination::Completed
     visioncraft__process->>visioncraft__process: group_running(pid, _)
   end
   opt result.termination != Termination::Completed
-    visioncraft__process->>visioncraft__process: signal_group(pid, SIGINT)
-    visioncraft__process->>visioncraft__process: signal_group(pid, SIGKILL)
+    visioncraft__process->>visioncraft__process: signal_owned_group(&child, SIGINT)
+    loop while owns_child && grace.elapsed()<Duration::from_mill…
+      opt !exited
+        visioncraft__process->>visioncraft__process: leader_exited(&child)
+      end
+    end
+    visioncraft__process->>visioncraft__process: signal_owned_group(&child, SIGKILL)
   end
   visioncraft__process->>visioncraft__process: unix_now()
 ```

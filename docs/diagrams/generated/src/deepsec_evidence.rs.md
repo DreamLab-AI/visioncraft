@@ -3,9 +3,9 @@ sealmap: 2
 source: src/deepsec_evidence.rs
 module: "sym:cargo visioncraft . deepsec_evidence/"
 language: rust
-source_hash: blake3:f26a627cb792b2b78f7637d38ad80a0e0260b566505bedf92cd524d64dd5a0ac
-lines: 317
-fragments: 6
+source_hash: blake3:0a9c380830ef2a7ac2da136735a50063ee9ef39345e526537439147442e2cfc6
+lines: 459
+fragments: 9
 ---
 # `sym:cargo visioncraft . deepsec_evidence/` · src/deepsec_evidence.rs
 > Private checks against the pinned reviewer's persisted protocol.
@@ -17,8 +17,10 @@ classDiagram
   class visioncraft__deepsec_evidence["visioncraft::deepsec_evidence"] {
     <<module>>
     #pending(super) Result#lt;Vec#lt;Artifact#gt;, GateError#gt;
+    #refuse_tracked_workspace(super) Result#lt;#40;#41;, GateError#gt;
     #run_files(super) Result#lt;BTreeSet#lt;String#gt;, GateError#gt;
     #select(super) Result#lt;Vec#lt;String#gt;, GateError#gt;
+    #selected_dirty(super) Result#lt;bool, GateError#gt;
     #snapshot(super) Result#lt;Vec#lt;Artifact#gt;, GateError#gt;
     #validate_review(super) Result#lt;Value, GateError#gt;
   }
@@ -89,8 +91,80 @@ sequenceDiagram
   end
 ```
 
+## `sym:cargo visioncraft . deepsec_evidence/tree().`
+`fn tree(attempt: &mut Attempt<'_>, root: &Path, reference: &str,) -> Result<BTreeMap<String, crate::git_metadata::Entry>, GateError>` · L74-L89
+```mermaid
+sequenceDiagram
+  participant visioncraft__deepsec_evidence as deepsec_evidence mod
+  participant _visioncraft as visioncraft ext
+  participant visioncraft__git_metadata as git_metadata mod
+  opt reference.starts_with('-')
+    visioncraft__deepsec_evidence->>_visioncraft: ~error(78, #quot;diff referen…)
+    Note over visioncraft__deepsec_evidence: return Err(error(78, #quot;diff reference must not be a Git …
+  end
+  visioncraft__deepsec_evidence->>visioncraft__git_metadata: git_metadata::tree_arguments(reference, &_)
+  visioncraft__deepsec_evidence->>visioncraft__deepsec_evidence: git_bytes(attempt, root, #quot;reference-tr…, tree_arguments…?
+  visioncraft__deepsec_evidence->>visioncraft__git_metadata: git_metadata::tree_entries(&bytes)
+  opt via map_err
+    visioncraft__deepsec_evidence->>_visioncraft: ~error(78, message)
+  end
+```
+
+## `sym:cargo visioncraft . deepsec_evidence/working_hashes().`
+`fn working_hashes(attempt: &mut Attempt<'_>, root: &Path, paths: &[String],) -> Result<BTreeMap<String, String>, GateError>` · L109-L153
+```mermaid
+sequenceDiagram
+  participant visioncraft__deepsec_evidence as deepsec_evidence mod
+  participant _visioncraft as visioncraft ext
+  participant visioncraft__git_metadata as git_metadata mod
+  opt paths.len()> 100_000
+    visioncraft__deepsec_evidence->>_visioncraft: ~error(78, #quot;review file …)
+    Note over visioncraft__deepsec_evidence: return Err(error(78, #quot;review file count exceeds 100000#quot;…
+  end
+  loop for chunk in paths.chunks(64)
+    loop for name in chunk
+      opt via map_err
+        visioncraft__deepsec_evidence->>_visioncraft: ~error(70, #quot;source exist…)
+      end
+      visioncraft__deepsec_evidence->>visioncraft__deepsec_evidence: confined(root, name)?
+      opt via map_err
+        visioncraft__deepsec_evidence->>_visioncraft: ~error(70, #quot;source metad…)
+      end
+      opt !meta.is_file() || meta.len()> 32 * 1024 * 1024
+        visioncraft__deepsec_evidence->>_visioncraft: ~error(78, #quot;raw review i…)
+        Note over visioncraft__deepsec_evidence: return Err(error(78, #quot;raw review input must be an ordin…
+      end
+    end
+    visioncraft__deepsec_evidence->>visioncraft__git_metadata: git_metadata::raw_hash_arguments(&present)
+    visioncraft__deepsec_evidence->>visioncraft__deepsec_evidence: git_bytes(attempt, root, #quot;raw-working-…, raw_hash_argum…?
+    visioncraft__deepsec_evidence->>visioncraft__git_metadata: git_metadata::raw_hashes(&present, &bytes)
+    opt via map_err
+      visioncraft__deepsec_evidence->>_visioncraft: ~error(78, message)
+    end
+  end
+```
+
+## `sym:cargo visioncraft . deepsec_evidence/selected_dirty().`
+`pub(super) fn selected_dirty(attempt: &mut Attempt<'_>, root: &Path, paths: &[String],) -> Result<bool, GateError>` · L178-L200
+> Observe only the selected raw input bytes against their committed Git blobs.
+```mermaid
+sequenceDiagram
+  participant visioncraft__deepsec_evidence as deepsec_evidence mod
+  participant visioncraft__git_metadata as git_metadata mod
+  participant _visioncraft as visioncraft ext
+  loop for chunk in paths.chunks(64)
+    visioncraft__deepsec_evidence->>visioncraft__git_metadata: git_metadata::tree_arguments(#quot;HEAD#quot;, chunk)
+    visioncraft__deepsec_evidence->>visioncraft__deepsec_evidence: git_bytes(attempt, root, #quot;selected-ref…, tree_arguments…?
+    visioncraft__deepsec_evidence->>visioncraft__git_metadata: git_metadata::tree_entries(&bytes)
+    opt via map_err
+      visioncraft__deepsec_evidence->>_visioncraft: ~error(78, message)
+    end
+  end
+  visioncraft__deepsec_evidence->>visioncraft__deepsec_evidence: working_hashes(attempt, root, paths)?
+```
+
 ## `sym:cargo visioncraft . deepsec_evidence/select().`
-`pub(super) fn select(options: &DeepsecOptions, files: Option<&Path>, attempt: &mut Attempt<'_>, root: &Path,) -> Result<Vec<String>, GateError>` · L61-L169
+`pub(super) fn select(options: &DeepsecOptions, files: Option<&Path>, attempt: &mut Attempt<'_>, root: &Path,) -> Result<Vec<String>, GateError>` · L202-L311
 ```mermaid
 sequenceDiagram
   participant visioncraft__deepsec_evidence as deepsec_evidence mod
@@ -105,15 +179,14 @@ sequenceDiagram
       visioncraft__deepsec_evidence->>_visioncraft: ~read_bounded(files, _)?
     end
   else
-    opt let Some(reference) = &options.diff
-      opt reference.starts_with('-')
-        visioncraft__deepsec_evidence->>_visioncraft: ~error(78, #quot;diff referen…)
-        Note over visioncraft__deepsec_evidence: return Err(error(78, #quot;diff reference must not be a Git …
+    alt !args.is_empty()
+      visioncraft__deepsec_evidence->>visioncraft__deepsec_evidence: git_bytes(attempt, root, #quot;source-selec…, args)?
+    else
+      visioncraft__deepsec_evidence->>visioncraft__deepsec_evidence: tree(attempt, root, unwrap_or())?
+      visioncraft__deepsec_evidence->>visioncraft__deepsec_evidence: index(attempt, root)?
+      opt not options.diff_staged
+        visioncraft__deepsec_evidence->>visioncraft__deepsec_evidence: working_hashes(attempt, root, &paths)?
       end
-    end
-    opt rc != 0
-      visioncraft__deepsec_evidence->>_visioncraft: ~error(78, #quot;could not re…)
-      Note over visioncraft__deepsec_evidence: return Err(error(78, #quot;could not resolve review source s…
     end
     opt options.diff_working
       opt rc != 0
@@ -133,10 +206,9 @@ sequenceDiagram
     visioncraft__deepsec_evidence->>visioncraft__deepsec_evidence: confined(root, path)?
   end
   opt options.diff_staged
-    opt via map_err
-      visioncraft__deepsec_evidence->>_visioncraft: ~error(78, #quot;Git paths mu…)
-    end
-    opt rc != 0 || changed.split('\0').any(| p | paths.conta…
+    visioncraft__deepsec_evidence->>visioncraft__deepsec_evidence: index(attempt, root)?
+    visioncraft__deepsec_evidence->>visioncraft__deepsec_evidence: working_hashes(attempt, root, &selected)?
+    opt paths.iter().any(| p | indexed.get(p).map(| e | &e.o…
       visioncraft__deepsec_evidence->>_visioncraft: ~error(78, #quot;staged input…)
       Note over visioncraft__deepsec_evidence: return Err(error(78, #quot;staged inputs differ from working…
     end
@@ -144,7 +216,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . deepsec_evidence/run_files().`
-`pub(super) fn run_files(data: &Path) -> Result<BTreeSet<String>, GateError>` · L170-L193
+`pub(super) fn run_files(data: &Path) -> Result<BTreeSet<String>, GateError>` · L312-L335
 ```mermaid
 sequenceDiagram
   participant visioncraft__deepsec_evidence as deepsec_evidence mod
@@ -174,7 +246,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . deepsec_evidence/validate_review().`
-`pub(super) fn validate_review(data: &Path, prior: &BTreeSet<String>, expected: &[Artifact], root: &Path, project: &str, report: &Path,) -> Result<Value, GateError>` · L220-L317
+`pub(super) fn validate_review(data: &Path, prior: &BTreeSet<String>, expected: &[Artifact], root: &Path, project: &str, report: &Path,) -> Result<Value, GateError>` · L362-L459
 ```mermaid
 sequenceDiagram
   participant visioncraft__deepsec_evidence as deepsec_evidence mod

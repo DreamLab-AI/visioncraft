@@ -3,8 +3,8 @@ sealmap: 2
 source: src/evaluate.rs
 module: "sym:cargo visioncraft . evaluate/"
 language: rust
-source_hash: blake3:68c30067ced8712ddcf6cb6c32ff742f62c952f39d3d4fa57951fe599b7da94c
-lines: 657
+source_hash: blake3:1950321301950506d38ec7deb1bfe79f0a16099c9d90b833356be23f7f90556d
+lines: 666
 fragments: 4
 ---
 # `sym:cargo visioncraft . evaluate/` · src/evaluate.rs
@@ -172,12 +172,14 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . evaluate/assessment_binding().`
-`fn assessment_binding(plan: &QualityPlan, digest: &str, subject: &Subject, claimed: &str, artifact: &crate::Artifact, at: u64, context: &EvaluationContext<'_>,) -> Result<(), ContractError>` · L298-L320
+`fn assessment_binding(plan: &QualityPlan, digest: &str, subject: &Subject, claimed: &str, artifact: &crate::Artifact, at: u64, context: &EvaluationContext<'_>,) -> Result<(), ContractError>` · L298-L324
 ```mermaid
 sequenceDiagram
   participant visioncraft__evaluate as evaluate mod
   participant visioncraft as visioncraft mod
   visioncraft__evaluate->>visioncraft: crate::require(_, #quot;assessment p…)?
+  visioncraft__evaluate->>visioncraft__evaluate: context_limits(plan, context)
+  visioncraft__evaluate->>visioncraft: crate::require(is_empty(), #quot;assessment n…)?
   visioncraft__evaluate->>visioncraft: artifact_shape(artifact)?
   visioncraft__evaluate->>visioncraft: crate::require(contains(), #quot;assessment a…)?
   visioncraft__evaluate->>visioncraft__evaluate: age_limit(at, plan, context)
@@ -185,7 +187,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . evaluate/expectation_report().`
-`fn expectation_report(plan: &QualityPlan, digest: &str, expectation: &Expectation, checks: &[CheckReport], runs: &BTreeMap<&str, &ExecutionReceipt>, context: &EvaluationContext<'_>,) -> ExpectationRe…` · L322-L524
+`fn expectation_report(plan: &QualityPlan, digest: &str, expectation: &Expectation, checks: &[CheckReport], runs: &BTreeMap<&str, &ExecutionReceipt>, context: &EvaluationContext<'_>,) -> ExpectationRe…` · L326-L528
 ```mermaid
 sequenceDiagram
   participant visioncraft__evaluate as evaluate mod

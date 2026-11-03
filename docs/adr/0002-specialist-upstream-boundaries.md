@@ -4,7 +4,7 @@ title: Consume specialist reviewers through versioned upstream contracts
 status: accepted
 date: 2026-11-03
 depends_on: [ADR-0001]
-verified_commit: 2c5a625ce245be2a5ec2f0b30633d708b50afb9e
+verified_commit: e3306776ebab083a7842b02ce4fec4e0a2bbc77c
 verified_paths:
   - src/deepsec.rs
   - src/deepsec_evidence.rs

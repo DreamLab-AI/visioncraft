@@ -3,7 +3,7 @@ id: ADR-0001
 title: Portable quality contracts with explicit execution adapters
 status: accepted
 date: 2026-11-03
-verified_commit: 2c5a625ce245be2a5ec2f0b30633d708b50afb9e
+verified_commit: e3306776ebab083a7842b02ce4fec4e0a2bbc77c
 verified_paths:
   - src/plan.rs
   - src/evidence.rs
@@ -36,7 +36,7 @@ identifiers are caller declarations, explicitly labelled as unverified when no
 current-subject attestation is supplied. Include configuration files in the
 selected inputs when their exact bytes must be checked automatically.
 
-Optional Unix process/CLI adapters execute explicit commands with private captures,
+Optional Linux process/CLI adapters execute explicit commands with private captures,
 deadlines and process-group cancellation. Read-only evaluation never executes an
 imported receipt's command. Fixed Git metadata probes use the same bounded runner,
 remove ambient Git redirection and avoid repository clean filters. This is not an
@@ -52,7 +52,7 @@ optional search/index tools are consumers.
 A prose-only extraction would preserve the original gap between requested checks
 and executable evidence. A new agent orchestration runtime would duplicate host
 execution and custody services. The selected boundary supports a pure library,
-portable foreground CLI and independently maintained host adapters.
+host-neutral foreground CLI and independently maintained host adapters.
 
 Generic command receipts cannot prove test coverage or claim that a model inspected
 all relevant code. Independent audits and manual observations remain explicit,

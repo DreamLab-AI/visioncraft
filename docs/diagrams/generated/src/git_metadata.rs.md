@@ -3,8 +3,8 @@ sealmap: 2
 source: src/git_metadata.rs
 module: "sym:cargo visioncraft . git_metadata/"
 language: rust
-source_hash: blake3:36f06c2d0b9d416dc106fd7d20839a5fc424fa52dc1e40f572a1acb24050a467
-lines: 30
+source_hash: blake3:5180f0e3dc3c8f0caf13e2dd1a6ab29b1799760491ce380efcc91c012988c0ae
+lines: 142
 fragments: 1
 ---
 # `sym:cargo visioncraft . git_metadata/` · src/git_metadata.rs
@@ -14,9 +14,20 @@ fragments: 1
 ```mermaid
 classDiagram
   direction LR
+  class visioncraft__git_metadata___tEntry["Entry"] {
+    <<struct>>
+    +mode: String
+    +object: String
+  }
   class visioncraft__git_metadata["visioncraft::git_metadata"] {
     <<module>>
     ~fixed_environment(crate) BTreeMap#lt;String, String#gt;
+    ~index_entries(crate) Result#lt;BTreeMap#lt;String, Entry#gt;, &'static str#gt;
     ~prefix(crate) Vec#lt;String#gt;
+    ~raw_hash_arguments(crate) Vec#lt;String#gt;
+    ~raw_hashes(crate) Result#lt;BTreeMap#lt;String, String#gt;, &'static str#gt;
+    ~tree_arguments(crate) Vec#lt;String#gt;
+    ~tree_entries(crate) Result#lt;BTreeMap#lt;String, Entry#gt;, &'static str#gt;
   }
+  visioncraft__git_metadata ..> visioncraft__git_metadata___tEntry
 ```

@@ -4,7 +4,7 @@ kind: overview
 codebase: visioncraft
 ---
 # visioncraft overview
-10 files · 168 symbols · 632 relations · 80 flows · 543 calls
+10 files · 182 symbols · 691 relations · 90 flows · 583 calls
 
 ## crates
 ```mermaid
@@ -30,8 +30,8 @@ flowchart LR
   visioncraft -->|"5"| clap
   visioncraft -->|"1"| fs
   visioncraft -->|"11"| io
-  visioncraft -->|"24"| nix
-  visioncraft -->|"5"| recorded
+  visioncraft -->|"32"| nix
+  visioncraft -->|"7"| recorded
   visioncraft -->|"37"| sealmap_corpus
   visioncraft -->|"14"| serde
   visioncraft -->|"20"| serde_json
@@ -62,7 +62,7 @@ flowchart LR
   visioncraft__cli -->|"2"| visioncraft__deepsec
   visioncraft__cli -->|"3"| visioncraft__evaluate
   visioncraft__cli -->|"16"| visioncraft__evidence
-  visioncraft__cli -->|"2"| visioncraft__git_metadata
+  visioncraft__cli -->|"4"| visioncraft__git_metadata
   visioncraft__cli -->|"13"| visioncraft__plan
   visioncraft__cli -->|"8"| visioncraft__process
   visioncraft__deepsec -->|"3"| visioncraft
@@ -70,12 +70,14 @@ flowchart LR
   visioncraft__deepsec -->|"1"| visioncraft__plan
   visioncraft__deepsec -->|"8"| visioncraft__process
   visioncraft__deepsec_evidence -->|"4"| visioncraft
+  visioncraft__deepsec_evidence -->|"9"| visioncraft__git_metadata
   visioncraft__evaluate -->|"10"| visioncraft
   visioncraft__evaluate -->|"15"| visioncraft__evidence
   visioncraft__evaluate -->|"20"| visioncraft__plan
   visioncraft__evidence -->|"20"| visioncraft
   visioncraft__evidence -->|"2"| visioncraft__evaluate
   visioncraft__evidence -->|"10"| visioncraft__plan
+  visioncraft__git_metadata -->|"3"| visioncraft
   visioncraft__plan -->|"31"| visioncraft
   visioncraft__process -->|"4"| visioncraft__plan
 ```

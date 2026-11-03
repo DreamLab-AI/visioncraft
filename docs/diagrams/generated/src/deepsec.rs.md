@@ -3,9 +3,9 @@ sealmap: 2
 source: src/deepsec.rs
 module: "sym:cargo visioncraft . deepsec/"
 language: rust
-source_hash: blake3:f6a856414c586500e5bbcb69b8f4cee3caf40b2de0b8895792ad0ca34e45c977
-lines: 1063
-fragments: 5
+source_hash: blake3:854ecc6f32f348b299aed4807609cd7229d91f426a1af19ac2f3c9f4dd89e8e8
+lines: 1084
+fragments: 6
 ---
 # `sym:cargo visioncraft . deepsec/` · src/deepsec.rs
 > Executed Deepsec 2.3.10 gates with explicit policy and retained error states.
@@ -219,8 +219,35 @@ sequenceDiagram
   end
 ```
 
+## `sym:cargo visioncraft . deepsec/validate_workspace_tree().`
+`fn validate_workspace_tree(workspace: &Path) -> Result<(), GateError>` · L582-L638
+```mermaid
+sequenceDiagram
+  participant visioncraft__deepsec as deepsec mod
+  loop while let Some((directory, depth)) = pending.pop()
+    opt depth> 64
+      visioncraft__deepsec->>visioncraft__deepsec: error(78, #quot;review works…)
+      Note over visioncraft__deepsec: return Err(error(78, #quot;review workspace exceeds traversa…
+    end
+    loop for entry in fs::read_dir(directory).map_err(io_error)?
+      opt count> 100_000
+        visioncraft__deepsec->>visioncraft__deepsec: error(78, #quot;review works…)
+        Note over visioncraft__deepsec: return Err(error(78, #quot;review workspace exceeds traversa…
+      end
+      opt depth == 0 && ![#quot;data#quot;, #quot;reports#quot;, #quot;deepsec.config.m…
+        visioncraft__deepsec->>visioncraft__deepsec: error(78, #quot;review works…)
+        Note over visioncraft__deepsec: return Err(error(78, #quot;review workspace contains unmanag…
+      end
+      opt meta.file_type().is_symlink() ||!(meta.is_dir() || m…
+        visioncraft__deepsec->>visioncraft__deepsec: error(78, #quot;review works…)
+        Note over visioncraft__deepsec: return Err(error(78, #quot;review workspace contains redirec…
+      end
+    end
+  end
+```
+
 ## `sym:cargo visioncraft . deepsec/execute().`
-`pub fn execute(options: &DeepsecOptions, cancelled: &AtomicBool) -> Result<i32, GateError>` · L618-L1025
+`pub fn execute(options: &DeepsecOptions, cancelled: &AtomicBool) -> Result<i32, GateError>` · L640-L1046
 > Execute an explicitly requested security gate, returning its legacy exit code.
 ```mermaid
 sequenceDiagram
@@ -229,9 +256,9 @@ sequenceDiagram
   participant visioncraft__deepsec___tDeepsecPolicy as DeepsecPolicy
   participant _serde_json as serde_json ext
   participant visioncraft__process as process mod
+  participant _recorded as recorded ext
   participant _tempfile as tempfile ext
   participant visioncraft__deepsec___tAttempt as Attempt
-  participant _recorded as recorded ext
   opt modes.into_iter().filter(| x | * x).count() != 1 || …
     visioncraft__deepsec->>visioncraft__deepsec: error(78, #quot;choose exact…)
     Note over visioncraft__deepsec: return Err(error(78, #quot;choose exactly one nonempty sourc…
@@ -292,23 +319,24 @@ sequenceDiagram
     visioncraft__deepsec->>visioncraft__deepsec: error(70, #quot;plan seriali…)
   end
   visioncraft__deepsec->>visioncraft__deepsec: write_new(&join(), &_)?
-  visioncraft__deepsec->>_tempfile: NamedTempFile::new_in(&workspace)
-  opt via map_err
-    visioncraft__deepsec->>visioncraft__deepsec: error(70, #quot;cannot final…)
-  end
-  opt fs::symlink_metadata(&config).is_ok_and(| m |!m.is_f…
-    visioncraft__deepsec->>visioncraft__deepsec: error(78, #quot;configuratio…)
-    Note over visioncraft__deepsec: return Err(error(78, #quot;configuration path is not an ordi…
-  end
-  visioncraft__deepsec->>_serde_json: serde_json::to_string_pretty(&config_value)
-  opt via map_err
-    visioncraft__deepsec->>visioncraft__deepsec: error(70, #quot;configuratio…)
-  end
-  visioncraft__deepsec->>_tempfile: NamedTempFile::new_in(&workspace)
-  opt via map_err
-    visioncraft__deepsec->>visioncraft__deepsec: error(70, #quot;cannot final…)
-  end
   opt closure
+    visioncraft__deepsec->>_recorded: recorded::refuse_tracked_workspace(&attempt, &root)?
+    visioncraft__deepsec->>_tempfile: NamedTempFile::new_in(&workspace)
+    opt via map_err
+      visioncraft__deepsec->>visioncraft__deepsec: error(70, #quot;cannot final…)
+    end
+    opt fs::symlink_metadata(&config).is_ok_and(| m |!m.is_f…
+      visioncraft__deepsec->>visioncraft__deepsec: error(78, #quot;configuratio…)
+      Note over visioncraft__deepsec: return Err(error(78, #quot;configuration path is not an ordi…
+    end
+    visioncraft__deepsec->>_serde_json: serde_json::to_string_pretty(&config_value)
+    opt via map_err
+      visioncraft__deepsec->>visioncraft__deepsec: error(70, #quot;configuratio…)
+    end
+    visioncraft__deepsec->>_tempfile: NamedTempFile::new_in(&workspace)
+    opt via map_err
+      visioncraft__deepsec->>visioncraft__deepsec: error(70, #quot;cannot final…)
+    end
     visioncraft__deepsec->>visioncraft__deepsec___tAttempt: command(#quot;version#quot;, #quot;deepsec#quot;, _, &workspace, false, fal…?
     visioncraft__deepsec->>visioncraft__deepsec: supported_version()
     opt rc != 0 || version_text != supported_version()
@@ -316,8 +344,8 @@ sequenceDiagram
       Note over visioncraft__deepsec: return Err(error(78, #quot;Deepsec version does not match th…
     end
     visioncraft__deepsec->>visioncraft__deepsec___tAttempt: command(#quot;revision#quot;, #quot;git#quot;, _, &root, false, false)?
-    visioncraft__deepsec->>visioncraft__deepsec___tAttempt: command(#quot;dirty#quot;, #quot;git#quot;, _, &root, false, false)?
     visioncraft__deepsec->>_recorded: recorded::select(options, as_deref(), &attempt, &root)?
+    visioncraft__deepsec->>_recorded: recorded::selected_dirty(&attempt, &root, &selected)?
     visioncraft__deepsec->>_recorded: recorded::snapshot(&root, &selected)?
     visioncraft__deepsec->>_serde_json: serde_json::to_vec_pretty(&before)
     opt via map_err
