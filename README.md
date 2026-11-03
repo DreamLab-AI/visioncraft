@@ -2,88 +2,29 @@
 
 **Engineering guidance and executable evidence gates for coding agents and people.**
 
-VisionCraft helps you define a change, run proportionate checks, assess what the
-results support, and carry that evidence through review and release. Use its
-[skill](skills/visioncraft/SKILL.md), Rust library, CLI, or a combination.
+VisionCraft helps you define a change, test it and give reviewers a clear record
+of what the results support. Use its [coding-agent skill](skills/visioncraft/SKILL.md),
+Rust library or CLI with your existing repository, CI and issue tracker.
 
-Developed within DreamLab-AI's [VisionFlow estate](https://github.com/DreamLab-AI/VisionFlow),
-VisionCraft packages the estate's engineering and review practices for reuse in
-any project. It is published on [crates.io](https://crates.io/crates/visioncraft),
-with [Rust API documentation](https://docs.rs/visioncraft).
+For an empty-search bug, that might mean reproducing the error, fixing it and
+checking both empty and ordinary queries. A shared event-format change needs
+consumer, compatibility and migration checks too. The method scales with the
+consequences, while keeping a merged fix distinct from a deployed one.
 
-## Why VisionCraft
-
-Every finished change should come with a clear account of what it was meant to
-do, what was checked, what the results show, and where the change has actually
-been delivered. VisionCraft makes that a repeatable engineering discipline. It
-combines a skill that coding agents can follow with a Rust library and command-line
-tools for recording and assessing evidence. It grew from the Build with Quality
-skill used across DreamLab-AI's projects.
-
-When coding agents work on your code, you still need to understand what they have
-done. A maintainer needs enough context to review the change, another developer
-needs to know which behaviour was tested, and the person deploying it needs to
-know which version users will receive. VisionCraft gives those conversations a
-shared basis: the intended behaviour, the relevant inputs, the checks that ran
-and their actual results. That record can accompany the work through review
-and release.
-
-Start by agreeing the behaviour and reproducing the problem.
-Consider an application where an empty search query should return an empty
-result, but currently produces an error. A useful repair establishes that
-expectation, reproduces the fault, changes the code and runs a test that reaches
-the original failure. A normal-query control checks that ordinary searches
-still work. The reviewer can then inspect both the repair and the evidence
-supporting it. This is a small, focused piece of work.
-
-A shared event-format change needs more depth. Each consumer has expectations
-about the data it receives. Older events may still be stored, and services may
-upgrade at different times. The same method expands to cover consumer tests,
-compatibility, migration and the decisions behind the new format. Merging the
-code, publishing a version and observing its deployment remain separate steps.
-Teams can scale the work to the change and its consequences.
-
-VisionCraft's tools support that discipline with explicit checks and captured command
-output associated with the source inputs being tested. The gate refuses to call
-required evidence a pass when it is missing, failed, stale or incomplete. A
-reviewer can see what supports the result and what still needs attention. These
-records help people make a judgement; they do not prove that the software is
-correct or secure, or that every important behaviour has been tested.
-
-Adoption can start with the skill in a coding agent or with the library and CLI
-in an existing repository and CI process. Keep your issue tracker, tests and
-architecture decisions. There is no required coding-agent framework, Agentbox
-installation or model subscription for the deterministic core. When configured,
-Agentic QE testing tools and Deepsec security review can contribute specialist
-evidence to the same engineering process.
-
-VisionCraft belongs to the VisionFlow estate, where architecture and audit
-records connect the projects. Sealmap supplies shared diagram and review
-contracts, while Agentbox consumes the published VisionCraft release and makes
-its method available to agents. The reusable skill, library and CLI are also
-available to independent maintainers and teams outside that estate.
-
-## Execution boundary
-
-It works without Agentbox, an orchestration framework or a model subscription.
-The deterministic core does not launch processes or make network calls. The optional CLI
-runs explicitly requested commands; optional upstream tools provide their own
-specialist capabilities.
-
-## What belongs where
-
-| Component | Responsibility |
+| Component | What it provides |
 |---|---|
-| VisionCraft skill | EDD/TDD, debugging, design decisions, review and delivery practices |
-| VisionCraft Rust core | Typed plans, evidence identity, expectation coverage and deterministic gate decisions |
-| VisionCraft CLI | Explicit command execution, bounded private captures and filesystem verification |
-| Agentic QE | Optional upstream QE tools: generate tests, inspect coverage and assess supplied quality evidence |
-| Deepsec | Optional upstream security investigations through a versioned CLI adapter |
-| Sealmap | Source-derived diagrams, model-family identity and adjacent finding-disposition contracts |
-| Your repository and CI | Authoritative requirements, ADRs, tests, configuration and release observations |
+| Skill | Expectation-driven development, TDD, debugging, architecture decisions and review practices |
+| Rust core | Typed plans, evidence verification and deterministic gate decisions; no process or network calls |
+| CLI | Explicit command execution, bounded captures and source/evidence freshness checks |
 
-A passing gate means the declared checks and evidence policy were satisfied.
-It is not proof of correctness, security, complete test coverage or deployment.
+Required missing, failed, stale or incomplete evidence cannot earn a pass.
+Passing means the declared checks satisfied their policy; it does not establish
+complete coverage, correctness, security or deployment. No Agentbox installation,
+agent framework or model subscription is required for the core.
+
+[Crates.io](https://crates.io/crates/visioncraft) ·
+[Rust API](https://docs.rs/visioncraft) ·
+[VisionFlow estate](#place-in-the-visionflow-estate)
 
 ## Install
 
@@ -105,7 +46,6 @@ visioncraft = { version = "0.1.0", default-features = false }
 For a coding agent, install the complete `skills/visioncraft/` directory from the
 same release using your harness's skill mechanism. Keep its `references/` and
 `assets/` alongside `SKILL.md`; they contain the actual engineering method.
-Reading a skill does not install or start any upstream service.
 
 ## A complete local example
 
@@ -128,60 +68,47 @@ visioncraft run quality.json --all --out evidence-1
 visioncraft evaluate quality.json --receipts evidence-1 --json
 ```
 
-The final command verifies the plan, exact source and capture hashes, check
-invocation and recorded exit. `run` reports execution status; `evaluate` makes
-the quality-gate decision. The explicit `sh -c` above asks for shell syntax;
-VisionCraft itself passes argument arrays directly and adds no shell.
+`run` captures execution; `evaluate` verifies the plan, source and capture hashes,
+invocation and exit status. Commands use argument arrays without an implicit
+shell; this example explicitly requests `sh -c`.
 
-Change `limit.txt` after running the check and repeat `evaluate`: the old
-receipt cannot satisfy the new input. Create a new plan and fresh run directory
-after intentionally changing a check's scope or configuration. Existing output
-paths are refused to avoid overwriting evidence.
+Change `limit.txt` and repeat `evaluate`: the old receipt no longer satisfies the
+input. After intentionally changing scope or configuration, create a new plan
+and run directory. Existing output paths are refused.
 
-Repository and configuration labels are caller declarations. Without
-`--current-subject`, evaluation reports their freshness as
-`plan-declared-unverified`; the CLI observes the selected source snapshot, but
-does not discover repository identity or configuration from the environment.
-To attest current labels, supply a current `Subject` JSON record:
+Include relevant source, lockfiles and configuration in `--input`. Only environment
+variables named through `--env` are inherited. Set `--timeout-ms` and
+`--max-output-bytes`; aggregate limits are 1,024 checks, one day of declared
+deadlines and one GiB of capture per plan.
+
+Repository/configuration labels are caller declarations, reported as
+`plan-declared-unverified`. To attest current labels, supply a `Subject` record:
 
 ```sh
 visioncraft evaluate quality.json --receipts evidence-1 \
   --current-subject current-subject.json --json
 ```
 
-The CLI checks that record's source fields against disk and treats its
-repository/configuration fields as `caller-attested`. Different labels make the
-old evidence stale; matching labels remain attestations. A configuration digest
-in a label is not automatically verified against a file. Include the actual
-configuration artifact in `--input` to check its bytes; changed selected
-configuration invalidates the evidence even if the label stays unchanged.
-
-For a real project, include relevant source, lockfiles and configuration in
-`--input`; pass required environment **names** with repeated `--env` options.
-Only named environment variables are inherited. Set useful `--timeout-ms` and
-`--max-output-bytes` bounds rather than relying on unlimited jobs. A plan admits at most 1,024 checks, one
-day of summed command deadlines and one GiB of summed capture limits.
+Its source fields are checked against disk; matching repository/configuration
+labels remain `caller-attested`. A digest written in a label does not verify a
+file: include the actual configuration in `--input` to bind its bytes.
 
 ## Expectations and review
 
-The [EDD reference](skills/visioncraft/references/edd.md) describes executable,
-partly verifiable and manual expectations. A plan can bind expectations to
-checks, positive controls, stabilising regression tests and independent audit
-requirements. Generic command execution cannot infer which test IDs or source
-lines a test runner reached; observed coverage remains unknown unless an
-observer supplies it.
+The [EDD reference](skills/visioncraft/references/edd.md) explains how to bind
+expectations to checks, positive controls, regression tests and independent
+review requirements.
 
 ```sh
 visioncraft expectations check quality.json --receipts evidence-1 --json
 visioncraft gate evaluate quality.json --receipts evidence-1 --json
 ```
 
-Both evaluate the entire required gate. Neither hides failed checks merely
-because an expectation does not refer to them. Missing, skipped, timed-out,
-stale and incomplete required evidence remains non-passing. Optional failures
-remain visible without silently becoming required.
+Both assess the entire required gate, including checks not referenced by an
+expectation. Optional failures stay visible. Actual test or line coverage remains
+unknown unless an observer supplies it.
 
-For imported findings, use Sealmap's existing receipt contract:
+For imported findings, VisionCraft uses Sealmap's receipt contract:
 
 ```sh
 sealmap review init findings.json --out finding-receipts.json
@@ -190,16 +117,13 @@ sealmap review check finding-receipts.json --json
 sealmap review summary finding-receipts.json
 ```
 
-VisionCraft consumes Sealmap's contracts rather than maintaining another finding
-validator. Schema checks and byte hashes establish evidence identity; an auditor
-still has to judge whether the evidence supports the claim.
+These checks establish structure and byte identity; an auditor judges whether
+the observations support the findings.
 
 ## Specialist upstreams
 
-Deepsec is an independently installed optional reviewer. The adapter supports
-the exact protocol recorded in [its release contract](contracts/deepsec.json).
-No command implicitly installs it, logs in, changes model routes or starts a
-review merely because you read the skill.
+**Deepsec** is an optional, independently installed security reviewer with a
+[versioned adapter contract](contracts/deepsec.json).
 
 ```sh
 # Inspect the resolved plan without running a reviewer.
@@ -210,36 +134,33 @@ visioncraft deepsec --diff origin/main
 visioncraft deepsec --scan-only
 ```
 
-The adapter freezes selected file names, checks their bytes before and after,
-and requires fresh per-file analysis evidence. In staged mode, differing index
-and working-tree bytes are refused. An empty export, refusal, partial review,
-unknown completion or unsupported tool version cannot produce PASS. Full mode
-reviews the scanner's pending candidates; it does not establish whole-program
-coverage. Historical findings may remain in the exported threshold assessment.
-Read [the integration guide](skills/visioncraft/references/deepsec.md) before
-choosing source scope, model route or spend limits. The [upstream maintenance
-procedure](docs/UPSTREAM-DEEPSEC.md) explains how to qualify a new release;
-upstream `main`, a published package and an activated host are separate versions.
+The adapter freezes file selection, checks source bytes before and after, and
+requires fresh analysis evidence. Staged mode refuses differing index and
+working-tree bytes. Empty exports, refusals, partial reviews and unsupported
+versions cannot pass. Full mode covers the scanner's pending candidates, not
+the whole program; historical findings may remain in threshold assessment.
+See the [integration guide](skills/visioncraft/references/deepsec.md) for scope,
+routes and spend controls, and [maintenance procedure](docs/UPSTREAM-DEEPSEC.md)
+for qualifying upgrades.
 
-Agentic QE is consumed through its own discovered CLI/MCP surface. Its
-[worked integration](skills/visioncraft/references/agentic-qe.md) and
-[versioned result contract](contracts/agentic-qe.json) define that boundary. Generated
-tests must be inspected and executed in the project. Preserve measured versus
-estimated coverage and `insufficient-evidence` outcomes; a recommendation or a
-registered agent name is not an executed check.
+**Agentic QE** supplies optional test and coverage tools through its own CLI/MCP
+surface. Follow its [worked integration](skills/visioncraft/references/agentic-qe.md)
+and [result contract](contracts/agentic-qe.json). Inspect and execute generated
+tests in the project; keep measured coverage distinct from estimates and retain
+`insufficient-evidence` results.
+
+Reading the skill does not install, authenticate or activate either service.
 
 ## Architecture records and diagrams
 
-Use the project's existing ADR and diagram corpus. Link requirements, decisions,
-code, checks and release observations. Implemented claims carry an inspected
-commit and nonempty governed paths. Updating a diagram's rendering does not
-verify its source claims; a clean relationship graph does not make an ADR current.
+Keep decisions and diagrams in the project's existing corpus, linked to
+requirements, inspected commits, governed source paths and release observations.
+Rendering a diagram does not verify its claims.
 
-[Decision guidance](skills/visioncraft/references/methodologies.md),
-[diagram diagnosis](skills/visioncraft/references/diagram-diagnosis.md) and
-[traceability](skills/visioncraft/references/traceability.md) explain how to keep
-these records useful without building a second documentation database.
-This project dogfoods that workflow in its [verified ADRs and diagrams](docs/diagrams/README.md).
+See [decision guidance](skills/visioncraft/references/methodologies.md),
+[diagram diagnosis](skills/visioncraft/references/diagram-diagnosis.md),
+[traceability](skills/visioncraft/references/traceability.md) and this project's
+[verified ADRs and diagrams](docs/diagrams/README.md).
 
 ## Rust library
 
@@ -267,38 +188,21 @@ outcome and individual check/expectation results. See the generated rustdoc and
 
 ## Place in the VisionFlow estate
 
-VisionCraft grew from the Build with Quality skill used across the VisionFlow
-estate. The reusable method, Rust library and CLI now live in this repository;
-hosts consume a pinned release and supply their own execution environment.
+VisionCraft succeeds the Build with Quality skill developed across DreamLab-AI's
+estate. The [migration guide](docs/MIGRATION.md) accounts for every former resource.
+It remains independently usable.
 
-| Project | Role and connection to VisionCraft |
+| Project | Connection |
 |---|---|
-| [VisionFlow](https://github.com/DreamLab-AI/VisionFlow) | Cross-repository architecture diagrams, audit records and estate documentation; VisionCraft guides how changes are checked and evidenced. |
-| [Sealmap](https://github.com/DreamLab-AI/sealmap) | Shared source-derived diagrams and review contracts consumed by VisionCraft. |
-| [Agentbox](https://github.com/DreamLab-AI/agentbox) | A host integration that installs VisionCraft, supplies policy and routes agents to its canonical skill. |
-| VisionCraft | Portable engineering guidance, executable quality plans and evidence gates for these projects and independent consumers. |
+| [VisionFlow](https://github.com/DreamLab-AI/VisionFlow) | Cross-project architecture, audit records and documentation |
+| [Sealmap](https://github.com/DreamLab-AI/sealmap) | Shared diagram, review and model-family contracts consumed by VisionCraft |
+| [Agentbox](https://github.com/DreamLab-AI/agentbox) | Installs a pinned release and canonical skill, supplies host policy and credentials, and routes agents through Jev |
 
-Each project keeps its own requirements, ADRs, tests and release records.
-VisionCraft connects the work to that evidence; host adapters provide credentials,
-model access and deployment controls where needed.
-
-### Agentbox integration
-
-Agentbox is one consumer. It installs a pinned VisionCraft release, distributes
-that release's canonical skill, projects host policy and credentials, and
-registers VisionCraft in its local and Jev-assisted skill picker. Ruflo supplies
-coordination; direct Agentic QE tools supply QE capabilities. Neither is needed
-for portable library use.
-
-Agentbox's Deepsec policy translator passes a typed configuration into the same
-VisionCraft CLI used elsewhere. It does not retain a second gate implementation.
-The hard cutover removes active `build-with-quality` entry points after checks
-pass; [the migration guide](docs/MIGRATION.md) maps every former resource.
-A committed pin is not evidence that an already running container adopted it.
-
-The [Agentbox integration reference](skills/visioncraft/references/ecosystem-agentbox.md)
-is the expanding record of that deployment's memory, routing and operational
-boundaries. Other hosts can supply their own adapters without importing them.
+Agentbox's Deepsec adapter projects policy into the same VisionCraft executable;
+it retains no parallel gate implementation. Ruflo handles coordination and
+Agentic QE provides direct testing tools. A source pin does not establish live
+activation. The [Agentbox integration reference](skills/visioncraft/references/ecosystem-agentbox.md)
+tracks memory, routing and deployment responsibilities.
 
 ## Limits and development
 
@@ -318,8 +222,8 @@ and `RUSTDOCFLAGS='-D warnings' cargo doc --no-deps`. The
 [implementation contract](docs/EXPECTATIONS.md) records acceptance boundaries.
 The [release review](docs/REVIEW-2026-11-03.md) records reproduced counterexamples
 and their dispositions.
-Structural skill checks and forward evaluations are reported separately from
-any measured improvement; this rewrite does not imply a success-rate uplift.
+See [evaluation evidence](docs/EVALUATION.md) for the bounded comparison; no
+measured success-rate improvement is claimed.
 
 MIT OR Apache-2.0. Attributed BeautifulRust material retains its original MIT
 notice. See [provenance](docs/PROVENANCE.md), [MIT](LICENSE-MIT) and
