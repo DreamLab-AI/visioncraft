@@ -1,0 +1,46 @@
+{
+  "repo": "DreamLab-AI/visioncraft",
+  "cron": "0 2 * * *",
+  "slots": [
+    { "deep": "plan-contract", "scan": ["plan-schema-and-parse", "input-and-configuration-binding", "aggregate-admission-bounds", "literal-argv-invocations"] },
+    { "deep": "evidence-and-gates", "scan": ["receipt-verification", "stale-and-incomplete-evidence", "required-vs-optional-gating", "observed-coverage-vs-intended-scope"] },
+    { "deep": "process-execution", "scan": ["process-group-cancellation", "timeouts-and-output-limits", "private-captures-and-symlink-refusal", "environment-allowlist"] },
+    { "deep": "cli-and-snapshots", "scan": ["dirty-snapshot-hashing", "git-metadata-and-clean-filters", "exit-codes-and-refusals", "existing-output-path-refusal"] },
+    { "deep": "deepsec-adapter", "scan": ["protocol-version-pin", "refusal-partial-unknown-output", "severity-threshold", "unsupported-version-unavailable"] },
+    { "deep": "skill-eval-harness", "scan": ["answer-leakage-boundary", "prediction-parsing", "four-dimension-scoring", "split-and-dataset-loading"] }
+  ],
+  "bonusModuli": { "7": "security-adversarial", "30": "api-surface-review" },
+  "buildStep": { "cmd": "cargo build --workspace --all-features --locked 2>&1 | tail -20", "degradeOnWasmFailure": false },
+  "evaluatorEntrypoints": {
+    "tests": "cargo test --workspace --all-features --locked 2>&1 | tail -40",
+    "tests-core-only": "cargo test --workspace --no-default-features --locked 2>&1 | tail -25",
+    "fmt": "cargo fmt --all --check && echo fmt: all files formatted",
+    "clippy": { "cmd": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings 2>&1 | tail -20", "required": true },
+    "doc": { "cmd": "RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --all-features --locked 2>&1 | tail -10", "required": false },
+    "skill-eval": { "cmd": "cd tools && python3 -I -m unittest discover -s skill-eval -p 'test_*.py' 2>&1 | tail -8", "required": true, "deeps": ["skill-eval-harness"] }
+  },
+  "protected": [
+    "contracts/**",
+    "tests/fixtures/**",
+    "docs/evaluation/**",
+    "docs/REVIEW-2026-11-03.md",
+    "docs/diagrams/generated/**",
+    "skills/visioncraft/assets/provenance.json",
+    "docs/adr/0001-portable-quality-contract.md",
+    "docs/adr/0002-specialist-upstream-boundaries.md"
+  ],
+  "adrConvention": "4-digit",
+  "extraDisciplines": [
+    "evaluation-is-not-promotion",
+    "witness-every-quantitative-claim",
+    "contracts-are-pins: contracts/deepsec.json and contracts/agentic-qe.json record upstream release identity (package integrity, supported versions, protocol); they are never edited to make a test pass, and a bump of a pinned upstream version is a HANDOFF needing an ADR and host activation",
+    "agentbox-handoff: agentbox owns baking the skill into /opt/agentbox/skills, the pinned release binary and the image rebuild; a change to the skill's file layout, entrypoint name or references/ paths names agentbox as affected and is a HANDOFF",
+    "upstream-handoff: behaviour owned by deepsec (vercel-labs), Agentic QE, sealmap/sealmap-corpus and SkillOpt is fixed upstream, not here; VisionCraft only adapts and bounds their observations",
+    "skill-prose-is-unmeasured: no night evaluator reads skills/visioncraft/** (cargo tests do not include it and skill-eval covers only tools/skill-eval); a change confined to skill prose has no evidence here and must be stated as INCONCLUSIVE, not ACCEPT",
+    "unmirrored-ci-gates: the nightly evaluators do not run `cargo package`, the MSRV 1.88 check or `sealmap generate --check`; a public-API change that could alter docs/diagrams/generated or the packaged crate is a HANDOFF naming those CI jobs"
+  ],
+  "ledgerPath": "docs/dream-cycle/LEDGER.md",
+  "branchPrefix": "dream/",
+  "labels": ["dream-cycle", "research"],
+  "autoMerge": false
+}
