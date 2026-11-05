@@ -1,5 +1,12 @@
 # VisionCraft diagrams and verification
 
+The hand-authored, citation-verified diagrams of VisionCraft live in the estate's single
+diagram corpus, the VisionFlow master record:
+[`docs/diagrams/visioncraft/`](https://github.com/DreamLab-AI/VisionFlow/tree/main/docs/diagrams/visioncraft)
+(VK-01 to VK-05: composition and contracts, the method lifecycle, evidence adapters, CI and
+release, the browser-WASM default and agentbox consumption). This directory keeps the
+generated Sealmap views below and one authored overview.
+
 The [generated overview](generated/_overview.md) and
 [per-source index](generated/_index.json) are extracted by Sealmap 0.4.0. Each
 source document has source hashes, symbol identities, spans and call confidence.
