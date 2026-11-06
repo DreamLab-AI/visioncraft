@@ -32,7 +32,7 @@ Rust 1.88 or later is required. Native execution currently supports Linux with g
 the deterministic library remains independent of the operating system.
 
 ```sh
-cargo install visioncraft --locked --version 0.2.0
+cargo install visioncraft --locked --version 0.3.0
 visioncraft --help
 ```
 
@@ -40,7 +40,7 @@ For the pure Rust library without CLI/process dependencies:
 
 ```toml
 [dependencies]
-visioncraft = { version = "0.2.0", default-features = false }
+visioncraft = { version = "0.3.0", default-features = false }
 ```
 
 For a coding agent, install the complete `skills/visioncraft/` directory from the
