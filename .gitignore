@@ -3,3 +3,7 @@
 /.deepsec-gate/
 /.task-evidence/
 /.claude-flow/
+
+# Python bytecode (the skill-eval evaluator writes it; an untracked file changes the dream candidate tree hash)
+__pycache__/
+*.pyc
