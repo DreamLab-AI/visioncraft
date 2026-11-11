@@ -14,7 +14,7 @@
   "evaluatorEntrypoints": {
     "tests": "cargo test --workspace --all-features --locked 2>&1 | tail -40",
     "tests-core-only": "cargo test --workspace --no-default-features --locked 2>&1 | tail -25",
-    "fmt": "cargo fmt --all --check && echo fmt: all files formatted",
+    "fmt": { "cmd": "cargo fmt --all --check && echo fmt: all files formatted", "fixer": "rustfmt" },
     "clippy": { "cmd": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings 2>&1 | tail -20", "required": true },
     "doc": { "cmd": "RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --all-features --locked 2>&1 | tail -10", "required": false },
     "skill-eval": { "cmd": "cd tools && python3 -I -m unittest discover -s skill-eval -p 'test_*.py' 2>&1 | tail -8", "required": true, "deeps": ["skill-eval-harness"] }
