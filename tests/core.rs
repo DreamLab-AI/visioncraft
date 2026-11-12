@@ -759,13 +759,17 @@ fn selected_inputs_and_expectations_have_admission_ceilings() {
     let mut p = plan();
     // plan() already selects one input, so MAX_PLAN_INPUTS - 1 more reach the ceiling.
     for n in 1..visioncraft::plan::MAX_PLAN_INPUTS {
-        p.subject.inputs.push(artifact(&format!("gen/{n}.rs"), b"fn g() {}"));
+        p.subject
+            .inputs
+            .push(artifact(&format!("gen/{n}.rs"), b"fn g() {}"));
     }
     assert!(
         p.validate().is_ok(),
         "exact selected-input ceiling remains usable"
     );
-    p.subject.inputs.push(artifact("gen/extra.rs", b"fn e() {}"));
+    p.subject
+        .inputs
+        .push(artifact("gen/extra.rs", b"fn e() {}"));
     assert!(
         p.validate().is_err(),
         "selected inputs cannot exceed the admission ceiling"
