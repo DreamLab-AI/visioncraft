@@ -753,3 +753,39 @@ fn valid_individual_checks_cannot_form_an_unbounded_aggregate_plan() {
         "required and optional checks share admission limits"
     );
 }
+
+#[test]
+fn selected_inputs_and_expectations_have_admission_ceilings() {
+    let mut p = plan();
+    // plan() already selects one input, so MAX_PLAN_INPUTS - 1 more reach the ceiling.
+    for n in 1..visioncraft::plan::MAX_PLAN_INPUTS {
+        p.subject.inputs.push(artifact(&format!("gen/{n}.rs"), b"fn g() {}"));
+    }
+    assert!(
+        p.validate().is_ok(),
+        "exact selected-input ceiling remains usable"
+    );
+    p.subject.inputs.push(artifact("gen/extra.rs", b"fn e() {}"));
+    assert!(
+        p.validate().is_err(),
+        "selected inputs cannot exceed the admission ceiling"
+    );
+
+    let mut p = plan();
+    for n in 0..visioncraft::plan::MAX_PLAN_EXPECTATIONS {
+        let mut e = expectation();
+        e.id = format!("exp-{n}");
+        p.expectations.push(e);
+    }
+    assert!(
+        p.validate().is_ok(),
+        "exact expectation ceiling remains usable"
+    );
+    let mut overflow = expectation();
+    overflow.id = format!("exp-{}", visioncraft::plan::MAX_PLAN_EXPECTATIONS);
+    p.expectations.push(overflow);
+    assert!(
+        p.validate().is_err(),
+        "declared expectations cannot exceed the admission ceiling"
+    );
+}
