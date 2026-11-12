@@ -9,6 +9,10 @@ use std::collections::BTreeSet;
 
 /// Maximum number of declared checks, including optional checks, in one plan.
 pub const MAX_PLAN_CHECKS: usize = 1024;
+/// Maximum number of declared behavioural expectations in one plan.
+pub const MAX_PLAN_EXPECTATIONS: usize = 4096;
+/// Maximum number of selected subject input files in one plan.
+pub const MAX_PLAN_INPUTS: usize = 16_384;
 /// Maximum sum of declared command deadlines: one day, excluding bounded cleanup.
 pub const MAX_PLAN_DURATION_MS: u64 = 86_400_000;
 /// Maximum sum of declared stdout/stderr capture bounds: one GiB per plan.
@@ -60,6 +64,10 @@ impl Subject {
 
 pub(crate) fn validate_inputs(inputs: &[Artifact]) -> Result<(), ContractError> {
     require(!inputs.is_empty(), "subject inputs cannot be empty")?;
+    require(
+        inputs.len() <= MAX_PLAN_INPUTS,
+        "subject input count exceeds admission ceiling",
+    )?;
     validate_input_paths(inputs)
 }
 
@@ -297,6 +305,10 @@ impl QualityPlan {
         require(
             self.checks.len() <= MAX_PLAN_CHECKS,
             "plan check count exceeds admission ceiling",
+        )?;
+        require(
+            self.expectations.len() <= MAX_PLAN_EXPECTATIONS,
+            "plan expectation count exceeds admission ceiling",
         )?;
         require(identifier(&self.id), "invalid plan id")?;
         self.subject.validate()?;
