@@ -6,3 +6,4 @@
 | 2026-11-09 | cli-and-snapshots | Environment fault, hypothesis untested: connected node annexe unhealthy: SSH com | NONE | NONE | blocked | BLOCKED-ENV |  | BLOCKED |  |  |  |
 | 2026-11-10 | deepsec-adapter | VETOED: deepsec receipts must equal contracts/deepsec.json identity; LOW not… | NONE | VETOED | yes | REJECT |  | 9c1b389df567 |  |  |  |
 | 2026-11-11 | skill-eval-harness | VETOED: 5 added harness controls pass: surface, fenced JSON, row shape… | NONE | VETOED | yes | BLOCKED-ENV |  | c39bdded00ff |  |  |  |
+| 2026-11-12 | plan-contract | MAX_PLAN_INPUTS=16384 and MAX_PLAN_EXPECTATIONS=4096 now bound plan validate() | NONE | https://github.com/DreamLab-AI/visioncraft/pull/4 | yes | ACCEPT |  | 3061c50121ab |  |  |  |
