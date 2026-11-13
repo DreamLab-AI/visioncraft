@@ -763,7 +763,10 @@ fn never_started_executions_cannot_claim_an_exit_code_or_signal() {
         forged.process = status;
         forged.diagnostic = Some("fixture never launched a process".into());
         forged.capture_complete = false;
-        assert!(forged.validate().is_err(), "{status:?} cannot claim a reaped exit code");
+        assert!(
+            forged.validate().is_err(),
+            "{status:?} cannot claim a reaped exit code"
+        );
         assert_eq!(
             report(&plan, std::slice::from_ref(&forged), &verified).outcome,
             GateOutcome::Error,
@@ -772,9 +775,15 @@ fn never_started_executions_cannot_claim_an_exit_code_or_signal() {
         let mut signalled = forged.clone();
         signalled.exit_code = None;
         signalled.signal = Some(9);
-        assert!(signalled.validate().is_err(), "{status:?} cannot claim a signal");
+        assert!(
+            signalled.validate().is_err(),
+            "{status:?} cannot claim a signal"
+        );
         forged.exit_code = None;
-        assert!(forged.validate().is_ok(), "{status:?} without results remains valid");
+        assert!(
+            forged.validate().is_ok(),
+            "{status:?} without results remains valid"
+        );
         assert!(
             !report(&plan, std::slice::from_ref(&forged), &verified).passed(),
             "{status:?} without results still cannot pass"
