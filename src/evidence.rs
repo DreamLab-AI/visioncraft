@@ -108,7 +108,8 @@ impl ExecutionReceipt {
     ///
     /// # Errors
     /// Refuses incomplete identities, impossible timestamps and success records
-    /// lacking complete capture or an exit code.
+    /// lacking complete capture or an exit code, and never-started processes
+    /// claiming an exit code or signal.
     pub fn validate(&self) -> Result<(), ContractError> {
         require(self.version == 1, "unsupported receipt version")?;
         require(
@@ -150,6 +151,14 @@ impl ExecutionReceipt {
                 self.diagnostic.as_deref().is_some_and(nonempty),
                 "incomplete execution requires a diagnostic",
             )?;
+            if self.process == ProcessStatus::FailedToStart
+                || self.process == ProcessStatus::Unavailable
+            {
+                require(
+                    self.exit_code.is_none() && self.signal.is_none(),
+                    "a process that never started cannot report an exit code or signal",
+                )?;
+            }
         }
         for a in self.stdout.iter().chain(self.stderr.iter()) {
             artifact_shape(a)?;

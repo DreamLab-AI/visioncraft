@@ -753,3 +753,31 @@ fn valid_individual_checks_cannot_form_an_unbounded_aggregate_plan() {
         "required and optional checks share admission limits"
     );
 }
+
+#[test]
+fn never_started_executions_cannot_claim_an_exit_code_or_signal() {
+    let plan = plan();
+    let mut verified = VerifiedArtifacts::default();
+    for status in [ProcessStatus::FailedToStart, ProcessStatus::Unavailable] {
+        let mut forged = receipt(&plan, "main", &mut verified);
+        forged.process = status;
+        forged.diagnostic = Some("fixture never launched a process".into());
+        forged.capture_complete = false;
+        assert!(forged.validate().is_err(), "{status:?} cannot claim a reaped exit code");
+        assert_eq!(
+            report(&plan, std::slice::from_ref(&forged), &verified).outcome,
+            GateOutcome::Error,
+            "{status:?}: a claimed result from a never-started process is invalid"
+        );
+        let mut signalled = forged.clone();
+        signalled.exit_code = None;
+        signalled.signal = Some(9);
+        assert!(signalled.validate().is_err(), "{status:?} cannot claim a signal");
+        forged.exit_code = None;
+        assert!(forged.validate().is_ok(), "{status:?} without results remains valid");
+        assert!(
+            !report(&plan, std::slice::from_ref(&forged), &verified).passed(),
+            "{status:?} without results still cannot pass"
+        );
+    }
+}
