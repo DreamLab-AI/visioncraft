@@ -122,7 +122,10 @@ fn standard_error_alone_exceeding_the_output_limit_names_the_cause() {
     assert_eq!(result.error.as_deref(), Some("output limit exceeded"));
     assert_eq!(fs::metadata(&result.stdout).unwrap().len(), 0);
     let retained = fs::metadata(&result.stderr).unwrap().len();
-    assert!((1..=1024).contains(&retained), "unexpected stderr size: {retained}");
+    assert!(
+        (1..=1024).contains(&retained),
+        "unexpected stderr size: {retained}"
+    );
 }
 
 #[cfg(target_os = "linux")]
