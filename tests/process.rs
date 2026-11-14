@@ -110,6 +110,21 @@ fn output_limit_and_lingering_background_processes_cannot_pass() {
     assert_eq!(result.termination, Termination::CaptureFailed);
 }
 
+#[test]
+fn standard_error_alone_exceeding_the_output_limit_names_the_cause() {
+    let root = tempfile::tempdir().unwrap();
+    let out = root.path().join("stderr-overflow");
+    private_directory(&out).unwrap();
+    let mut spec = invocation("yes err >&2");
+    spec.max_output_bytes = 1024;
+    let result = run_command(&spec, root.path(), &out, &AtomicBool::new(false), false).unwrap();
+    assert_eq!(result.termination, Termination::CaptureFailed, "{result:?}");
+    assert_eq!(result.error.as_deref(), Some("output limit exceeded"));
+    assert_eq!(fs::metadata(&result.stdout).unwrap().len(), 0);
+    let retained = fs::metadata(&result.stderr).unwrap().len();
+    assert!((1..=1024).contains(&retained), "unexpected stderr size: {retained}");
+}
+
 #[cfg(target_os = "linux")]
 fn completed_leader_with_group_member(exited: bool) -> visioncraft::process::CapturedRun {
     use std::os::unix::process::CommandExt;
