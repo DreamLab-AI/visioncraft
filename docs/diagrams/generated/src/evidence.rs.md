@@ -3,8 +3,8 @@ sealmap: 2
 source: src/evidence.rs
 module: "sym:cargo visioncraft . evidence/"
 language: rust
-source_hash: blake3:edfe990a885f2bcad685855fe0c87e11878174d676e4414f4f9448e818ca520a
-lines: 292
+source_hash: blake3:828bcb80eba9b50585cd3d8e0dc360f40716b3824a508fc60b52fcd1514d0f77
+lines: 301
 fragments: 2
 ---
 # `sym:cargo visioncraft . evidence/` · src/evidence.rs
@@ -136,7 +136,7 @@ classDiagram
 ```
 
 ## `sym:cargo visioncraft . evidence/ExecutionReceipt#validate().`
-`pub fn validate(&self) -> Result<(), ContractError>` · L107-L178
+`pub fn validate(&self) -> Result<(), ContractError>` · L107-L187
 > Check receipt consistency; matching a plan and bytes is a separate step.
 ```mermaid
 sequenceDiagram
@@ -170,6 +170,9 @@ sequenceDiagram
     visioncraft__evidence___tExecutionReceipt->>visioncraft: require(_, #quot;completed ex…)?
   else
     visioncraft__evidence___tExecutionReceipt->>visioncraft: require(is_some_and(), #quot;incomplete e…)?
+    opt self.process == ProcessStatus::FailedToStart || self…
+      visioncraft__evidence___tExecutionReceipt->>visioncraft: require(_, #quot;a process th…)?
+    end
   end
   loop for a in self.stdout.iter().chain(self.stderr.iter())
     visioncraft__evidence___tExecutionReceipt->>visioncraft: artifact_shape(a)?
