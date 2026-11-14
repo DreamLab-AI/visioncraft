@@ -4,7 +4,7 @@ kind: overview
 codebase: visioncraft
 ---
 # visioncraft overview
-10 files · 182 symbols · 691 relations · 90 flows · 583 calls
+10 files · 184 symbols · 692 relations · 90 flows · 586 calls
 
 ## crates
 ```mermaid
@@ -32,7 +32,7 @@ flowchart LR
   visioncraft -->|"11"| io
   visioncraft -->|"32"| nix
   visioncraft -->|"7"| recorded
-  visioncraft -->|"37"| sealmap_corpus
+  visioncraft -->|"38"| sealmap_corpus
   visioncraft -->|"14"| serde
   visioncraft -->|"20"| serde_json
   visioncraft -->|"3"| sha2

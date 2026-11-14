@@ -3,9 +3,9 @@ sealmap: 2
 source: src/plan.rs
 module: "sym:cargo visioncraft . plan/"
 language: rust
-source_hash: blake3:a0eaf6b6e34139a3b02ddc3d521d69dc4c064884b96dfe85585b1a1e7da2107d
-lines: 413
-fragments: 4
+source_hash: blake3:0c39b973a72d258d18a489bd487d5fea34804216b30f2f4f3f1816a6a3667fc7
+lines: 425
+fragments: 5
 ---
 # `sym:cargo visioncraft . plan/` · src/plan.rs
 > Typed plans describe explicitly selected checks; parsing never runs them.
@@ -92,6 +92,8 @@ classDiagram
     <<module>>
     +const MAX_PLAN_CHECKS: usize
     +const MAX_PLAN_DURATION_MS: u64
+    +const MAX_PLAN_EXPECTATIONS: usize
+    +const MAX_PLAN_INPUTS: usize
     +const MAX_PLAN_OUTPUT_BYTES: u64
     ~same_inputs(crate) bool
     ~validate_input_paths(crate) Result#lt;#40;#41;, ContractError#gt;
@@ -120,7 +122,7 @@ classDiagram
 ```
 
 ## `sym:cargo visioncraft . plan/Subject#validate().`
-`pub fn validate(&self) -> Result<(), ContractError>` · L36-L58
+`pub fn validate(&self) -> Result<(), ContractError>` · L40-L62
 > Check identity, dirty-snapshot and unique input-path requirements.
 ```mermaid
 sequenceDiagram
@@ -140,8 +142,22 @@ sequenceDiagram
   visioncraft__plan___tSubject->>visioncraft__plan: validate_inputs(&self.inputs)
 ```
 
+## `sym:cargo visioncraft . plan/validate_inputs().`
+`pub(crate) fn validate_inputs(inputs: &[Artifact]) -> Result<(), ContractError>` · L65-L72
+```mermaid
+sequenceDiagram
+  participant visioncraft__plan as plan mod
+  participant _sealmap_corpus as sealmap_corpus ext
+  participant visioncraft as visioncraft mod
+  visioncraft__plan->>_sealmap_corpus: Artifact::is_empty()
+  visioncraft__plan->>visioncraft: require(_, #quot;subject inpu…)?
+  visioncraft__plan->>_sealmap_corpus: Artifact::len()
+  visioncraft__plan->>visioncraft: require(_, #quot;subject inpu…)?
+  visioncraft__plan->>visioncraft__plan: validate_input_paths(inputs)
+```
+
 ## `sym:cargo visioncraft . plan/Invocation#validate().`
-`pub fn validate(&self) -> Result<(), ContractError>` · L104-L137
+`pub fn validate(&self) -> Result<(), ContractError>` · L112-L145
 > Validate the bounded argv contract without resolving executables or env.
 ```mermaid
 sequenceDiagram
@@ -161,7 +177,7 @@ sequenceDiagram
 ```
 
 ## `sym:cargo visioncraft . plan/QualityPlan#validate().`
-`pub fn validate(&self) -> Result<(), ContractError>` · L291-L398
+`pub fn validate(&self) -> Result<(), ContractError>` · L299-L410
 > Validate identifiers, references and bounded execution policies.
 ```mermaid
 sequenceDiagram
@@ -170,6 +186,7 @@ sequenceDiagram
   participant visioncraft__plan___tSubject as Subject
   visioncraft__plan___tQualityPlan->>visioncraft: require(_, #quot;unsupported …)?
   visioncraft__plan___tQualityPlan->>visioncraft: require(_, #quot;plan check c…)?
+  visioncraft__plan___tQualityPlan->>visioncraft: require(_, #quot;plan expecta…)?
   visioncraft__plan___tQualityPlan->>visioncraft: identifier(&self.id)
   visioncraft__plan___tQualityPlan->>visioncraft: require(identifier(), #quot;invalid plan…)?
   visioncraft__plan___tQualityPlan->>visioncraft__plan___tSubject: validate()?
