@@ -110,6 +110,7 @@ impl ExecutionReceipt {
     /// Refuses incomplete identities, impossible timestamps and success records
     /// lacking complete capture or an exit code, and never-started processes
     /// claiming an exit code or signal.
+    /// Capture-failed records claiming complete capture are also refused.
     pub fn validate(&self) -> Result<(), ContractError> {
         require(self.version == 1, "unsupported receipt version")?;
         require(
@@ -157,6 +158,12 @@ impl ExecutionReceipt {
                 require(
                     self.exit_code.is_none() && self.signal.is_none(),
                     "a process that never started cannot report an exit code or signal",
+                )?;
+            }
+            if self.process == ProcessStatus::CaptureFailed {
+                require(
+                    !self.capture_complete,
+                    "capture-failed execution cannot claim complete capture",
                 )?;
             }
         }
@@ -297,5 +304,75 @@ impl VerifiedArtifacts {
         self.entries
             .get(&(artifact.path.clone(), artifact.sha256.clone()))
             .copied()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ExecutionReceipt;
+
+    const CAPTURE_FAILED: &str = r#"{
+  "version": 1,
+  "attempt_id": "attempt-1",
+  "plan_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "check_id": "check-1",
+  "subject": {
+    "repository": "example/repo",
+    "revision": "0000000000000000000000000000000000000000",
+    "configuration": "debug",
+    "dirty": false,
+    "working_tree": null,
+    "inputs": [
+      {
+        "path": "src/lib.rs",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ]
+  },
+  "invocation": {
+    "program": "/bin/tool",
+    "args": [],
+    "cwd": ".",
+    "env": ["PATH"],
+    "timeout_ms": 60000,
+    "max_output_bytes": 8388608
+  },
+  "executable": "/bin/tool",
+  "executable_sha256": null,
+  "tool_version": null,
+  "started_at_ms": 1000,
+  "finished_at_ms": 2000,
+  "elapsed_ms": 1000,
+  "process": "capture-failed",
+  "exit_code": null,
+  "signal": null,
+  "capture_complete": false,
+  "stdout": null,
+  "stderr": null,
+  "inputs_after": [
+    {
+      "path": "src/lib.rs",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "observed_scope": null,
+  "observed_tests": [],
+  "reported": null,
+  "diagnostic": "standard error exceeded the configured output limit"
+}"#;
+
+    #[test]
+    fn capture_failed_without_complete_capture_stays_a_valid_nonpassing_receipt() {
+        assert!(ExecutionReceipt::parse(CAPTURE_FAILED.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn capture_failed_cannot_claim_complete_capture() {
+        let claimed = "\"capture_complete\": true";
+        let forged = CAPTURE_FAILED.replace("\"capture_complete\": false", claimed);
+        match ExecutionReceipt::parse(forged.as_bytes()) {
+            Err(error) => assert!(error.to_string().contains("cannot claim complete capture")),
+            Ok(_) => panic!("capture-failed receipt claiming complete capture must be refused"),
+        }
     }
 }
