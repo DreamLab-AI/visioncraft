@@ -9,3 +9,4 @@
 | 2026-11-12 | plan-contract | MAX_PLAN_INPUTS=16384 and MAX_PLAN_EXPECTATIONS=4096 now bound plan validate() | NONE | https://github.com/DreamLab-AI/visioncraft/pull/4 | yes | ACCEPT |  | 3061c50121ab |  |  |  |
 | 2026-11-13 | evidence-and-gates | validate() rejects failed-to-start/unavailable receipts claiming exit/signal | NONE | https://github.com/DreamLab-AI/visioncraft/pull/5 | yes | ACCEPT |  | 77fdaad607b5 |  |  |  |
 | 2026-11-14 | process-execution | stderr-only overflow is CaptureFailed, retains <=1KiB, error names the limit | NONE | https://github.com/DreamLab-AI/visioncraft/pull/6 | yes | ACCEPT |  | 10d03540be5a |  |  |  |
+| 2026-11-15 | cli-and-snapshots | validate() refuses capture-failed receipts that claim capture_complete | NONE | https://github.com/DreamLab-AI/visioncraft/pull/7 | yes | ACCEPT |  | 2950cf6b70ca |  |  |  |
