@@ -437,6 +437,11 @@ fn unsupported_authentication_routes_are_refused_before_review() {
     ] {
         let f = Fixture::new("pass");
         let out = f.run(&["--files-from", f.list.to_str().unwrap()], policy);
-        assert_eq!(out.status.code(), Some(78), "{}", String::from_utf8_lossy(&out.stderr));
+        assert_eq!(
+            out.status.code(),
+            Some(78),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
     }
 }
