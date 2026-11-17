@@ -11,3 +11,4 @@
 | 2026-11-14 | process-execution | stderr-only overflow is CaptureFailed, retains <=1KiB, error names the limit | NONE | https://github.com/DreamLab-AI/visioncraft/pull/6 | yes | ACCEPT |  | 10d03540be5a |  |  |  |
 | 2026-11-15 | cli-and-snapshots | validate() refuses capture-failed receipts that claim capture_complete | NONE | https://github.com/DreamLab-AI/visioncraft/pull/7 | yes | ACCEPT |  | 2950cf6b70ca |  |  |  |
 | 2026-11-16 | deepsec-adapter | policy auth guards refuse local/direct/custom misconfig with 78 before review | NONE | https://github.com/DreamLab-AI/visioncraft/pull/8 | yes | ACCEPT |  | 91c7e84834e9 |  |  |  |
+| 2026-11-17 | skill-eval-harness | fenced-JSON parsing, loader rejections, completed-only aggregate now controlled | NONE | https://github.com/DreamLab-AI/visioncraft/pull/9 | yes | ACCEPT |  | 065827b35e29 |  |  |  |
