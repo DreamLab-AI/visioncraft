@@ -4,7 +4,7 @@ kind: overview
 codebase: visioncraft
 ---
 # visioncraft overview
-10 files · 184 symbols · 692 relations · 90 flows · 587 calls
+10 files · 184 symbols · 692 relations · 90 flows · 588 calls
 
 ## crates
 ```mermaid
