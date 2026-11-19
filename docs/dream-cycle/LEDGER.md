@@ -13,3 +13,4 @@
 | 2026-11-16 | deepsec-adapter | policy auth guards refuse local/direct/custom misconfig with 78 before review | NONE | https://github.com/DreamLab-AI/visioncraft/pull/8 | yes | ACCEPT |  | 91c7e84834e9 |  |  |  |
 | 2026-11-17 | skill-eval-harness | fenced-JSON parsing, loader rejections, completed-only aggregate now controlled | NONE | https://github.com/DreamLab-AI/visioncraft/pull/9 | yes | ACCEPT |  | 065827b35e29 |  |  |  |
 | 2026-11-18 | plan-contract | VETOED: validate() now refuses invocation.program containing NUL, matching its… | NONE | VETOED | yes | REJECT |  | 1063cb215e24 |  |  |  |
+| 2026-11-19 | evidence-and-gates | ACCEPT upheld: 4 required evaluator(s) passed on candidate tree aaecb1eacb2a | NONE | https://github.com/DreamLab-AI/visioncraft/pull/10 | yes | ACCEPT |  | 71741f77c8f4 |  |  |  |
