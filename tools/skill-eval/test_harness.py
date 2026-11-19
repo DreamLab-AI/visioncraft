@@ -45,5 +45,44 @@ class HarnessTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/'synthetic.json';p.write_text(json.dumps(data))
             self.assertEqual(load_dataset(p),data)
+    def test_fenced_json_response_is_parsed(self):
+        _,item,answer=fixture()
+        body=json.dumps({'answers':[answer]})
+        for fenced in ('```json\n'+body+'\n```','```\n'+body+'\n```'):
+            self.assertEqual(parse_predictions(fenced,[item])[item['id']],answer)
+    def test_loader_rejects_invalid_split_id_prompt_and_accepted(self):
+        data,_,_=fixture()
+        mutations=[lambda i:i.update(split='holdout'),lambda i:i.update(id='bad id'),
+                   lambda i:i.update(prompt=''),lambda i:i['accepted'].update(gate=[]),
+                   lambda i:i['accepted'].update(gate=['green'])]
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'synthetic.json'
+            for mutate in mutations:
+                item=json.loads(json.dumps(data['items'][0]));mutate(item)
+                p.write_text(json.dumps({**data,'items':[item]}))
+                with self.assertRaises(AssertionError):
+                    load_dataset(p)
+            p.write_text(json.dumps({**data,'items':[data['items'][0],dict(data['items'][0])]}))
+            with self.assertRaises(AssertionError):
+                load_dataset(p)
+    def test_aggregate_averages_completed_replicates_only(self):
+        from run_eval import aggregate
+        with tempfile.TemporaryDirectory() as d:
+            out=Path(d);runs=out/'runs'
+            metas={'baseline__train__1':(1.0,1.0,''),
+                   'candidate__test__1':(0.5,0.75,''),
+                   'candidate__test__2':(1.0,1.0,''),
+                   'candidate__test__3':(0.0,0.0,'target_timeout')}
+            for name,(hard,soft,failure) in metas.items():
+                meta={'status':'completed' if not failure else 'unavailable','hard_acc':hard,
+                      'soft_acc':soft,'failure':failure,'item_count':4}
+                (runs/name).mkdir(parents=True);(runs/name/'meta.json').write_text(json.dumps(meta))
+            result=aggregate(out)
+            self.assertEqual([(r['arm'],r['split'],r['attempts'],r['completed']) for r in result['groups']],
+                             [('baseline','train',1,1),('candidate','test',3,2)])
+            test=next(r for r in result['groups'] if r['split']=='test')
+            self.assertEqual((test['hard_acc'],test['soft_acc'],test['failures']),(0.75,0.875,['target_timeout']))
+            self.assertEqual(test['hard_replicates'],[0.5,1.0])
+            self.assertTrue(result['pilot_saturated'])
 
 if __name__=='__main__': unittest.main()
