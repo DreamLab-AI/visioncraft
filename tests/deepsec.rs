@@ -427,3 +427,21 @@ fn dry_run_is_read_only_and_carries_names_not_credentials() {
     assert_eq!(out.status.code(), Some(78));
     assert!(!f.root.join(".deepsec-gate").exists());
 }
+
+#[test]
+fn unsupported_authentication_routes_are_refused_before_review() {
+    for policy in [
+        json!({"model_auth":"local","agent":"gemini","max_duration":"10s"}),
+        json!({"model_auth":"direct","ai_provider":"gemini","ai_api_key_env":"FIXTURE_CREDENTIAL","max_duration":"10s"}),
+        json!({"model_auth":"custom","agent":"pi","ai_api_key_env":"FIXTURE_CREDENTIAL","max_duration":"10s"}),
+    ] {
+        let f = Fixture::new("pass");
+        let out = f.run(&["--files-from", f.list.to_str().unwrap()], policy);
+        assert_eq!(
+            out.status.code(),
+            Some(78),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+}
