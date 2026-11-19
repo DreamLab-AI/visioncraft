@@ -109,7 +109,7 @@ impl ExecutionReceipt {
     /// # Errors
     /// Refuses incomplete identities, impossible timestamps and success records
     /// lacking complete capture or an exit code, and never-started processes
-    /// claiming an exit code or signal.
+    /// claiming an exit code or signal, and capture-failed receipts claiming complete capture.
     pub fn validate(&self) -> Result<(), ContractError> {
         require(self.version == 1, "unsupported receipt version")?;
         require(
@@ -157,6 +157,12 @@ impl ExecutionReceipt {
                 require(
                     self.exit_code.is_none() && self.signal.is_none(),
                     "a process that never started cannot report an exit code or signal",
+                )?;
+            }
+            if self.process == ProcessStatus::CaptureFailed {
+                require(
+                    !self.capture_complete,
+                    "capture-failed execution cannot claim complete capture",
                 )?;
             }
         }
