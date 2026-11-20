@@ -270,3 +270,26 @@ fn private_output_is_fresh_and_does_not_follow_symlinks() {
     );
     assert_eq!(fs::read_to_string(victim).unwrap(), "unchanged");
 }
+
+#[test]
+fn standard_error_capture_does_not_follow_symlinks() {
+    use std::os::unix::fs::symlink;
+    let root = tempfile::tempdir().unwrap();
+    let other = tempfile::tempdir().unwrap();
+    let out = root.path().join("attempt");
+    private_directory(&out).unwrap();
+    let victim = other.path().join("victim");
+    fs::write(&victim, "intact").unwrap();
+    symlink(&victim, out.join("stderr.log")).unwrap();
+    assert!(
+        run_command(
+            &invocation("printf altered >&2"),
+            root.path(),
+            &out,
+            &AtomicBool::new(false),
+            false
+        )
+        .is_err()
+    );
+    assert_eq!(fs::read_to_string(victim).unwrap(), "intact");
+}
