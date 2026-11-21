@@ -15,3 +15,4 @@
 | 2026-11-18 | plan-contract | VETOED: validate() now refuses invocation.program containing NUL, matching its… | NONE | VETOED | yes | REJECT |  | 1063cb215e24 |  |  |  |
 | 2026-11-19 | evidence-and-gates | ACCEPT upheld: 4 required evaluator(s) passed on candidate tree aaecb1eacb2a | NONE | https://github.com/DreamLab-AI/visioncraft/pull/10 | yes | ACCEPT |  | 71741f77c8f4 |  |  |  |
 | 2026-11-20 | process-execution | stderr.log symlink in a fresh output dir is refused; victim bytes unchanged | NONE | https://github.com/DreamLab-AI/visioncraft/pull/11 | yes | ACCEPT |  | fbac07c884e0 |  |  |  |
+| 2026-11-21 | cli-and-snapshots | git metadata parsers refuse unresolved, gitlink and hash-count-drift records | NONE | https://github.com/DreamLab-AI/visioncraft/pull/12 | yes | ACCEPT |  | e4ce6b3f172a |  |  |  |
