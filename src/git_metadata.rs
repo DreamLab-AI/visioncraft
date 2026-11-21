@@ -140,3 +140,42 @@ pub(crate) fn fixed_environment() -> BTreeMap<String, String> {
     .map(|(name, value)| (name.into(), value.into()))
     .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parity_unattestable_index_records_are_refused() {
+        let object = "0".repeat(40);
+        let unresolved = format!("100644 {object} 1\tconflicted.rs\0");
+        assert_eq!(
+            index_entries(unresolved.as_bytes()),
+            Err("invalid or unresolved Git index entry")
+        );
+        let gitlink = format!("160000 {object} 0\tvendor/sub\0");
+        assert_eq!(
+            index_entries(gitlink.as_bytes()),
+            Err("submodule index entries require an explicit file manifest")
+        );
+    }
+
+    #[test]
+    fn raw_hashes_bind_positionally_and_refuse_count_drift() {
+        let first = "1".repeat(40);
+        let second = "2".repeat(40);
+        let third = "3".repeat(40);
+        let paths = ["z.txt".to_string(), "a.txt".to_string()];
+        let bound = raw_hashes(&paths, format!("{first}\n{second}\n").as_bytes()).unwrap();
+        assert_eq!(bound["z.txt"], first, "hashes bind by position, not by sort order");
+        assert_eq!(bound["a.txt"], second);
+        assert_eq!(
+            raw_hashes(&paths, first.as_bytes()),
+            Err("Git raw hash count or identity differs")
+        );
+        assert_eq!(
+            raw_hashes(&paths, format!("{first}\n{second}\n{third}\n").as_bytes()),
+            Err("Git raw hash count or identity differs")
+        );
+    }
+}
