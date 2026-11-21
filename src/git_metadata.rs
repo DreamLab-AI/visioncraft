@@ -167,7 +167,10 @@ mod tests {
         let third = "3".repeat(40);
         let paths = ["z.txt".to_string(), "a.txt".to_string()];
         let bound = raw_hashes(&paths, format!("{first}\n{second}\n").as_bytes()).unwrap();
-        assert_eq!(bound["z.txt"], first, "hashes bind by position, not by sort order");
+        assert_eq!(
+            bound["z.txt"], first,
+            "hashes bind by position, not by sort order"
+        );
         assert_eq!(bound["a.txt"], second);
         assert_eq!(
             raw_hashes(&paths, first.as_bytes()),
