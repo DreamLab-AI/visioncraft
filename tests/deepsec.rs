@@ -445,3 +445,45 @@ fn unsupported_authentication_routes_are_refused_before_review() {
         );
     }
 }
+
+#[test]
+fn severity_threshold_is_an_ordered_inclusive_cut() {
+    for (case, fail_on, code, result) in [
+        ("block", "CRITICAL", 0, "PASS"),
+        ("block", "MEDIUM", 1, "BLOCK"),
+        ("block", "LOW", 1, "BLOCK"),
+        ("low", "LOW", 1, "BLOCK"),
+        ("low", "CRITICAL", 0, "PASS"),
+    ] {
+        let f = Fixture::new(case);
+        let out = f.run(
+            &["--files-from", f.list.to_str().unwrap()],
+            json!({"fail_on":fail_on,"max_duration":"10s"}),
+        );
+        assert_eq!(
+            out.status.code(),
+            Some(code),
+            "{case} at {fail_on}: {} {}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_eq!(f.receipt()["result"], result, "{case} at {fail_on}");
+    }
+}
+
+#[test]
+fn unknown_severity_thresholds_are_refused_before_review() {
+    for fail_on in ["medium", "EXTREME", "critical ", "none"] {
+        let f = Fixture::new("pass");
+        let out = f.run(
+            &["--files-from", f.list.to_str().unwrap()],
+            json!({"fail_on":fail_on,"max_duration":"10s"}),
+        );
+        assert_eq!(
+            out.status.code(),
+            Some(78),
+            "{fail_on:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+}
