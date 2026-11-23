@@ -65,6 +65,15 @@ class HarnessTest(unittest.TestCase):
             p.write_text(json.dumps({**data,'items':[data['items'][0],dict(data['items'][0])]}))
             with self.assertRaises(AssertionError):
                 load_dataset(p)
+    def test_loader_rejects_rubric_missing_a_dimension(self):
+        data,_,_=fixture()
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'synthetic.json'
+            for name in DIMENSIONS:
+                truncated={k:v for k,v in data['rubric'].items() if k!=name}
+                p.write_text(json.dumps({**data,'rubric':truncated}))
+                with self.assertRaises(AssertionError):
+                    load_dataset(p)
     def test_aggregate_averages_completed_replicates_only(self):
         from run_eval import aggregate
         with tempfile.TemporaryDirectory() as d:
