@@ -14,6 +14,7 @@ ENUMS = {
 def load_dataset(path: Path) -> dict:
     data = json.loads(path.read_text())
     assert isinstance(data['rubric'], dict)
+    assert all(name in data['rubric'] for name in DIMENSIONS)
     ids = set()
     for item in data['items']:
         assert isinstance(item['id'], str) and item['id'] and item['id'] not in ids
