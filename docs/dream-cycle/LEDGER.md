@@ -18,3 +18,4 @@
 | 2026-11-21 | cli-and-snapshots | git metadata parsers refuse unresolved, gitlink and hash-count-drift records | NONE | https://github.com/DreamLab-AI/visioncraft/pull/12 | yes | ACCEPT |  | e4ce6b3f172a |  |  |  |
 | 2026-11-22 | deepsec-adapter | severity cut is ordered-inclusive, not equality; unknown fail_on exits 78 | NONE | https://github.com/DreamLab-AI/visioncraft/pull/13 | yes | ACCEPT |  | 56095dcda877 |  |  |  |
 | 2026-11-23 | skill-eval-harness | loader rejects rubric missing a dimension; was a post-reservation KeyError | NONE | https://github.com/DreamLab-AI/visioncraft/pull/14 | yes | ACCEPT |  | edd71aa02c7d |  |  |  |
+| 2026-11-24 | plan-contract | VETOED: invocation argv and env-name counts gain ceilings: 16384 args, 1024 env… | NONE | VETOED | yes | REJECT |  | 3c6740f6812e |  |  |  |
