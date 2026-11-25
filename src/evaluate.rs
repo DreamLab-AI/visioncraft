@@ -692,7 +692,10 @@ mod tests {
     fn observed_scope_must_stay_within_pinned_inputs() {
         let inputs = vec![pinned("src/lib.rs"), pinned("Cargo.toml")];
         assert!(observed_scope_within_inputs(&[], &inputs));
-        assert!(observed_scope_within_inputs(&["src/lib.rs".to_owned()], &inputs));
+        assert!(observed_scope_within_inputs(
+            &["src/lib.rs".to_owned()],
+            &inputs
+        ));
         assert!(observed_scope_within_inputs(
             &["Cargo.toml".to_owned(), "src/lib.rs".to_owned()],
             &inputs
