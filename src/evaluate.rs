@@ -157,6 +157,11 @@ fn age_limit(at: u64, plan: &QualityPlan, context: &EvaluationContext<'_>) -> Op
     }
 }
 
+fn observed_scope_within_inputs(observed: &[String], inputs: &[crate::Artifact]) -> bool {
+    let pinned: BTreeSet<&String> = inputs.iter().map(|a| &a.path).collect();
+    observed.iter().all(|p| pinned.contains(p))
+}
+
 fn check_receipt(
     plan: &QualityPlan,
     digest: &str,
@@ -230,6 +235,12 @@ fn check_receipt(
             return (
                 CheckOutcome::Inconclusive,
                 vec!["observed scope omits selected source inputs".into()],
+            );
+        }
+        Some(paths) if !observed_scope_within_inputs(paths, &plan.subject.inputs) => {
+            return (
+                CheckOutcome::Inconclusive,
+                vec!["observed scope includes source paths outside the selected inputs".into()],
             );
         }
         None if plan.policy.require_observed_scope => {
@@ -663,4 +674,32 @@ pub fn evaluate(
         GateOutcome::Passed
     };
     report
+}
+
+#[cfg(test)]
+mod tests {
+    use super::observed_scope_within_inputs;
+    use crate::Artifact;
+
+    fn pinned(path: &str) -> Artifact {
+        Artifact {
+            path: path.to_owned(),
+            sha256: "0".repeat(64),
+        }
+    }
+
+    #[test]
+    fn observed_scope_must_stay_within_pinned_inputs() {
+        let inputs = vec![pinned("src/lib.rs"), pinned("Cargo.toml")];
+        assert!(observed_scope_within_inputs(&[], &inputs));
+        assert!(observed_scope_within_inputs(&["src/lib.rs".to_owned()], &inputs));
+        assert!(observed_scope_within_inputs(
+            &["Cargo.toml".to_owned(), "src/lib.rs".to_owned()],
+            &inputs
+        ));
+        assert!(!observed_scope_within_inputs(
+            &["src/lib.rs".to_owned(), "secrets.env".to_owned()],
+            &inputs
+        ));
+    }
 }
