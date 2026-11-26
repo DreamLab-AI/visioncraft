@@ -128,6 +128,24 @@ fn standard_error_alone_exceeding_the_output_limit_names_the_cause() {
     );
 }
 
+#[test]
+fn output_limit_counts_both_streams_together() {
+    let root = tempfile::tempdir().unwrap();
+    let out = root.path().join("combined-overflow");
+    private_directory(&out).unwrap();
+    let mut spec = invocation("printf '%600s' x; printf '%600s' x >&2");
+    spec.max_output_bytes = 1024;
+    let result = run_command(&spec, root.path(), &out, &AtomicBool::new(false), false).unwrap();
+    assert_eq!(result.termination, Termination::CaptureFailed, "{result:?}");
+    assert_eq!(result.error.as_deref(), Some("output limit exceeded"));
+    let stdout = fs::metadata(&result.stdout).unwrap().len();
+    let stderr = fs::metadata(&result.stderr).unwrap().len();
+    assert!(
+        stdout + stderr <= 1024,
+        "combined capture exceeded the limit: {stdout} stdout + {stderr} stderr"
+    );
+}
+
 #[cfg(target_os = "linux")]
 fn completed_leader_with_group_member(exited: bool) -> visioncraft::process::CapturedRun {
     use std::os::unix::process::CommandExt;
