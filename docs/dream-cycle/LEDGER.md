@@ -20,3 +20,4 @@
 | 2026-11-23 | skill-eval-harness | loader rejects rubric missing a dimension; was a post-reservation KeyError | NONE | https://github.com/DreamLab-AI/visioncraft/pull/14 | yes | ACCEPT |  | edd71aa02c7d |  |  |  |
 | 2026-11-24 | plan-contract | VETOED: invocation argv and env-name counts gain ceilings: 16384 args, 1024 env… | NONE | VETOED | yes | REJECT |  | 3c6740f6812e |  |  |  |
 | 2026-11-25 | evidence-and-gates | observed scope with paths beyond pinned subject inputs now grades Inconclusive | NONE | https://github.com/DreamLab-AI/visioncraft/pull/15 | yes | ACCEPT |  | b0d6b86ddfc8 |  |  |  |
+| 2026-11-26 | process-execution | combined stdout+stderr overflow fails capture; retained files stay within limit | NONE | https://github.com/DreamLab-AI/visioncraft/pull/16 | yes | ACCEPT |  | a0dd9da156d0 |  |  |  |
