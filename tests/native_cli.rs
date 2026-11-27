@@ -678,7 +678,11 @@ fn clean_filters_do_not_reconcile_worktree_bytes_with_committed_blobs() {
     // blob differs from the worktree file while git status stays clean.
     git(root.path(), &["config", "filter.upper.clean", "tr a-z A-Z"]);
     git(root.path(), &["config", "filter.upper.smudge", "cat"]);
-    fs::write(root.path().join(".gitattributes"), "source.txt filter=upper\n").unwrap();
+    fs::write(
+        root.path().join(".gitattributes"),
+        "source.txt filter=upper\n",
+    )
+    .unwrap();
     git(root.path(), &["add", ".gitattributes", "source.txt"]);
     git(
         root.path(),
@@ -692,7 +696,11 @@ fn clean_filters_do_not_reconcile_worktree_bytes_with_committed_blobs() {
             "clean filter",
         ],
     );
-    assert!(git(root.path(), &["status", "--porcelain", "source.txt"]).stdout.is_empty());
+    assert!(
+        git(root.path(), &["status", "--porcelain", "source.txt"])
+            .stdout
+            .is_empty()
+    );
     success(&cli(
         root.path(),
         &[
@@ -711,7 +719,10 @@ fn clean_filters_do_not_reconcile_worktree_bytes_with_committed_blobs() {
     let plan = QualityPlan::parse(&fs::read(root.path().join("plan.json")).unwrap()).unwrap();
     assert!(plan.subject.dirty);
     assert_eq!(plan.subject.inputs[0].path, "source.txt");
-    assert_eq!(plan.subject.inputs[0].sha256, visioncraft::sha256(b"original\n"));
+    assert_eq!(
+        plan.subject.inputs[0].sha256,
+        visioncraft::sha256(b"original\n")
+    );
     assert!(plan.subject.working_tree.is_some());
 }
 
