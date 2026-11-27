@@ -21,3 +21,4 @@
 | 2026-11-24 | plan-contract | VETOED: invocation argv and env-name counts gain ceilings: 16384 args, 1024 env… | NONE | VETOED | yes | REJECT |  | 3c6740f6812e |  |  |  |
 | 2026-11-25 | evidence-and-gates | observed scope with paths beyond pinned subject inputs now grades Inconclusive | NONE | https://github.com/DreamLab-AI/visioncraft/pull/15 | yes | ACCEPT |  | b0d6b86ddfc8 |  |  |  |
 | 2026-11-26 | process-execution | combined stdout+stderr overflow fails capture; retained files stay within limit | NONE | https://github.com/DreamLab-AI/visioncraft/pull/16 | yes | ACCEPT |  | a0dd9da156d0 |  |  |  |
+| 2026-11-27 | cli-and-snapshots | clean-filtered committed blobs stay dirty; plan inputs hash raw worktree bytes | NONE | https://github.com/DreamLab-AI/visioncraft/pull/17 | yes | ACCEPT |  | 4d5415b12e71 |  |  |  |
