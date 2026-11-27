@@ -672,6 +672,61 @@ fn ambient_git_environment_cannot_redirect_metadata_to_a_sibling_repo() {
 }
 
 #[test]
+fn clean_filters_do_not_reconcile_worktree_bytes_with_committed_blobs() {
+    let root = fixture();
+    // A clean filter transforms bytes when git stores them, so the committed
+    // blob differs from the worktree file while git status stays clean.
+    git(root.path(), &["config", "filter.upper.clean", "tr a-z A-Z"]);
+    git(root.path(), &["config", "filter.upper.smudge", "cat"]);
+    fs::write(
+        root.path().join(".gitattributes"),
+        "source.txt filter=upper\n",
+    )
+    .unwrap();
+    git(root.path(), &["add", ".gitattributes", "source.txt"]);
+    git(
+        root.path(),
+        &[
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            "clean filter",
+        ],
+    );
+    assert!(
+        git(root.path(), &["status", "--porcelain", "source.txt"])
+            .stdout
+            .is_empty()
+    );
+    success(&cli(
+        root.path(),
+        &[
+            "plan",
+            "init",
+            "--out",
+            "plan.json",
+            "--input",
+            "source.txt",
+            "--configuration",
+            "native fixture",
+            "--",
+            "/bin/true",
+        ],
+    ));
+    let plan = QualityPlan::parse(&fs::read(root.path().join("plan.json")).unwrap()).unwrap();
+    assert!(plan.subject.dirty);
+    assert_eq!(plan.subject.inputs[0].path, "source.txt");
+    assert_eq!(
+        plan.subject.inputs[0].sha256,
+        visioncraft::sha256(b"original\n")
+    );
+    assert!(plan.subject.working_tree.is_some());
+}
+
+#[test]
 fn committed_blob_size_is_bounded_before_requesting_blob_contents() {
     use std::os::unix::fs::PermissionsExt;
     let root = fixture();
