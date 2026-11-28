@@ -399,7 +399,10 @@ fn findings(bytes: &[u8]) -> Result<Vec<Value>, GateError> {
         // A finding cannot also be a group: its nested entries would be
         // silently unread, hiding their severities from the threshold cut.
         if finding.get("findings").and_then(Value::as_array).is_some() {
-            return Err(error(70, "finding row cannot be both a finding and a group"));
+            return Err(error(
+                70,
+                "finding row cannot be both a finding and a group",
+            ));
         }
         let severity = finding
             .get("severity")
