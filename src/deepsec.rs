@@ -396,6 +396,11 @@ fn findings(bytes: &[u8]) -> Result<Vec<Value>, GateError> {
         }
     }
     for finding in &mut output {
+        // A finding cannot also be a group: its nested entries would be
+        // silently unread, hiding their severities from the threshold cut.
+        if finding.get("findings").and_then(Value::as_array).is_some() {
+            return Err(error(70, "finding row cannot be both a finding and a group"));
+        }
         let severity = finding
             .get("severity")
             .and_then(Value::as_str)
@@ -407,6 +412,30 @@ fn findings(bytes: &[u8]) -> Result<Vec<Value>, GateError> {
         finding["severity"] = Value::String(severity);
     }
     Ok(output)
+}
+
+#[cfg(test)]
+mod findings_export_tests {
+    use super::*;
+
+    #[test]
+    fn a_row_with_both_severity_and_nested_findings_is_refused() {
+        let bytes = br#"[
+            {"severity": "low", "findings": [{"severity": "critical"}]}
+        ]"#;
+        assert!(findings(bytes).is_err());
+    }
+
+    #[test]
+    fn a_nested_finding_with_both_severity_and_deeper_findings_is_refused() {
+        let bytes = br#"[
+            {
+                "filePath": "src/lib.rs",
+                "findings": [{"severity": "low", "findings": [{"severity": "critical"}]}]
+            }
+        ]"#;
+        assert!(findings(bytes).is_err());
+    }
 }
 
 // Findings come from an external protocol. Reject duplicate keys at every level,
